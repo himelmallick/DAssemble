@@ -1,2 +1,2 @@
 # DEfusion
-Ensemble models for differential analysis
+Differential analysis using Ensembles
