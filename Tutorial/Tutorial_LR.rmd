@@ -1,0 +1,312 @@
+---
+title: "Case study 1: Interpretable ensemble models for differential expression analysis using logistic regression"
+author: "Erina Paul"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Tweedieverse}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette highlights the example workflow for performing differential expression using interpretable ensemble models with logistic regression.
+
+## Install and load packages
+```{r, warning=FALSE, message = FALSE}
+# Clear workspace 
+rm(list = ls())
+
+# Set working directory
+workingDirectory='/SFS/user/ctc/pauleri/TPCPLM/analysis/'
+setwd(workingDirectory)
+
+# Load Libraries
+library(tidyverse)
+library(Seurat)
+library(Matrix)
+library(pkgmaker)
+library(foreach)
+library(doParallel)
+library(data.table)
+library(scDatasets)  # library(devtools); devtools::install_github("gongx030/scDatasets")
+library(SummarizedExperiment)
+library(Biobase)
+library(SC2P) # library(devtools); install_github("haowulab/SC2P")
+library(SingleCellExperiment)
+library(gridExtra)
+pacman::p_load('reshape2')
+library(DESeq2)
+library(metapod)
+library(scran)
+library(cowplot)
+
+# Load Source Files
+pkgmaker::source_files('./Codes/Real_Data/helper', '*.R')
+```
+
+## Data
+The dataset (referred to here as the Brain data) contains expression counts of 100 single‐cells generated from two different cell types: oligodentrocytes cells ($N = 38$) and  astrocytes cells ($N = 62$). This dataset is obtained from the R package [SC2P](https://github.com/haowulab/SC2P)) and is available from the Gene Expression Omnibus database under accession number  [GSE67835](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE67835).
+
+### Load data
+```{r}
+data(brain_scRNAseq)
+
+# Force the consistent format 
+features = as.data.frame(t(Y))
+metadata = as.data.frame(design$celltype)
+names(metadata) = 'CellType'
+metadata$CellType = factor(metadata$CellType, levels = unique(metadata$CellType))
+rownames(features) = rownames(metadata)=paste('cell', 1:nrow(features), sep ='')
+colnames(features) = trimws(colnames(features)) # remove white space
+```
+
+### Extract other parameters 
+```{r}
+libSize = features %>% rowSums()
+ID = features %>% rownames()
+physeq = list(features = features,
+            metadata = metadata,
+            libSize = libSize,
+            ID = ID)
+```
+
+## Output
+Here, we fit the two part model using DESeq2 and logistic regression. First, we fit the models separately and then combine the two-part model using the p-value combination method.
+
+### Run DESeq2 
+```{r}
+# Standard DESeq2 pipeline
+formula = as.formula(paste('~', paste(colnames(metadata), collapse = "+"), sep=''))
+x = DESeqDataSetFromMatrix(countData = t(as.matrix(features)), colData = metadata, design = formula)
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+geoMeans = apply(counts(x), 1, gm_mean)
+x = estimateSizeFactors(x, geoMeans = geoMeans)
+fit = DESeq(x)
+
+# Combine results
+coef = coef(fit)[,-1]
+pval = results(fit,name=resultsNames(fit)[2])$pvalue
+paras = cbind.data.frame(coef, pval)
+paras$feature = rownames(paras)
+paras$metadata = names(metadata)
+paras$adjPval = as.numeric(p.adjust(paras$pval, method = 'BY'))
+paras = paras[order(paras$adjPval, decreasing = FALSE),]
+
+# Return output from DESeq2
+paras_CR = paras %>% dplyr::rename(pval_CR = pval)
+```
+
+### Run logistic regression for presence/absense test 
+```{r warning=FALSE}
+paras_LR = fit.LR(features = features,
+                   metadata = metadata,
+                   libSize = libSize,
+                   ID = ID)
+```
+
+### Combine results 
+```{r}
+paras = paras_CR %>% right_join(paras_LR, by=c("feature","metadata"))
+```
+
+### Attach p-value
+After computation, Brain is a data frame containing coefficient estimates, p-values, and multiplicity-adjusted p-values along with other parameter estimates from the fitted per-feature models and two-part models. By default, p-values are adjusted with the Vanilla and Cauchy Combination Test (CCT) method. Top 10 statistically significant differntially expressed genes (observed FDR smaller than 0.05) are represented in the table and figure.
+
+#### Vanilla
+```{r}
+# P-value: Vanilla 
+parasVanilla = paras
+parasVanilla$pval = pmin(parasVanilla$pval_CR, parasVanilla$pval_LR)
+
+# Adjusted p-value using Vanilla
+parasVanilla$qval = as.numeric(p.adjust(parasVanilla$pval, method = 'BY'))
+
+# Return output 
+parasVanilla = parasVanilla[order(parasVanilla$qval, decreasing = FALSE),]
+finresVanilla = list(res = parasVanilla, features = features)
+finresVanilla$res[1:10,]
+```
+
+```{r, fig.width=7}
+# Boxplot (Top 10)
+dataVanilla = finresVanilla$res[1:10,]
+
+plot1 = dataVanilla%>%  
+  mutate(feature = reorder(feature, coef)) %>%
+  ggplot(aes(x=feature, y = coef)) +    
+  geom_bar(stat="identity", fill="#f68060") +
+  coord_flip() +
+  ylab(expression('Log'[2]*' fold change'))+
+  xlab("")
+
+grid.arrange(plot1, ncol=1)
+```
+
+```{r, fig.width=7, fig.height=6,  warning=FALSE}
+# Raincloud plot (Top 10)
+output = finresVanilla[["res"]]
+data = output[which(output$pval_LR<=0.05 & output$pval_CR>=0.5),][1:10,]
+
+scale.factor = SCRANnorm(physeq$features)
+norm.feature = physeq$features/scale.factor
+data1 = norm.feature[,data$feature]
+
+data.plot = cbind(data1, metadata)
+plot_data = gather(data.plot, feature, value, data$feature, factor_key=TRUE)
+
+plot_data$value <- log10(plot_data$value)
+plot_data$value[is.nan(plot_data$value)] <- -Inf
+
+
+p1 = ggplot(plot_data, aes(x = feature, y = value, fill = CellType)) +
+  geom_flat_violin(aes(fill =  CellType), position = position_nudge(x = .1, y = 0), adjust = 1.5, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(feature)-.25, y = value, colour =  CellType),
+             position = position_jitter(width = .05),
+             size = 3, shape = 21, stroke = 0.15, color = 'black')+
+  geom_boxplot(aes(x = feature, y = value, fill =  CellType),outlier.shape = NA, alpha = .5, width = .3, colour = "black")+
+  scale_colour_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.position = "bottom") +
+  ggtitle('') + xlab('') + ylab('Abundance')
+
+#######################
+# Bar Plot for Zeroes #
+#######################
+
+rep_data2 <- plot_data %>%
+  mutate(value2 = ifelse(is.finite(value), 1, 0)) %>%
+  group_by(feature, CellType) %>%
+  summarise(prevalence = mean(value2))
+
+p2<-ggplot(data=rep_data2, aes(x=feature, y=prevalence, fill=CellType)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  scale_colour_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_bw() +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        plot.title = ggplot2::element_text(hjust = 0.5, size = 20)) +
+  ggtitle('') + xlab('') +   ylab('Prevalence')
+
+###########
+# Combine #
+###########
+
+p<-plot_grid(p2, NULL, p1, ncol = 1, rel_heights = c(1.25, -0.1, 5))
+p
+```
+
+
+#### CCT
+```{r, warning=FALSE}
+# P-value: CCT
+parasCCT = paras_CR %>% right_join(paras_LR, by=c("feature","metadata"))
+parasCCT$pval = combinePvalCCT(parasCCT$pval_CR, parasCCT$pval_LR)
+
+# Adjusted p-value using CCT
+parasCCT$qval = as.numeric(p.adjust(parasCCT$pval, method = 'BY'))
+
+# Return output 
+parasCCT = parasCCT[order(parasCCT$qval, decreasing = FALSE),]
+finresCCT = list(res = parasCCT, features = features)
+finresCCT$res[1:10,]
+```
+
+```{r, fig.width=7}
+# Boxplot (Top 10)
+dataCCT = finresCCT$res[1:10,]
+
+plot1 = dataCCT%>%  
+  mutate(feature = reorder(feature, coef)) %>%
+  ggplot(aes(x=feature, y = coef)) +    
+  geom_bar(stat="identity", fill="#f68060") +
+  coord_flip() +
+  ylab(expression('Log'[2]*' fold change'))+
+  xlab("")
+
+grid.arrange(plot1, ncol=1)
+```
+
+```{r, fig.width=7, fig.height=6, warning=FALSE}
+# Raincloud plot (Top 10)
+output = finresCCT[["res"]]
+data = output[which(output$pval_LR<=0.05 & output$pval_CR>=0.5),][1:10,]
+
+scale.factor = SCRANnorm(physeq$features)
+norm.feature = physeq$features/scale.factor
+data1 = norm.feature[,data$feature]
+
+data.plot = cbind(data1, metadata)
+plot_data = gather(data.plot, feature, value, data$feature, factor_key=TRUE)
+
+plot_data$value <- log10(plot_data$value)
+plot_data$value[is.nan(plot_data$value)] <- -Inf
+
+
+p1 = ggplot(plot_data, aes(x = feature, y = value, fill = CellType)) +
+  geom_flat_violin(aes(fill =  CellType), position = position_nudge(x = .1, y = 0), adjust = 1.5, trim = FALSE, alpha = .5, colour = NA)+
+  geom_point(aes(x = as.numeric(feature)-.25, y = value, colour =  CellType),
+             position = position_jitter(width = .05),
+             size = 3, shape = 21, stroke = 0.15, color = 'black')+
+  geom_boxplot(aes(x = feature, y = value, fill =  CellType),outlier.shape = NA, alpha = .5, width = .3, colour = "black")+
+  scale_colour_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        legend.position = "bottom") +
+  ggtitle('') + xlab('') + ylab('Abundance')
+
+#######################
+# Bar Plot for Zeroes #
+#######################
+
+rep_data2 <- plot_data %>%
+  mutate(value2 = ifelse(is.finite(value), 1, 0)) %>%
+  group_by(feature, CellType) %>%
+  summarise(prevalence = mean(value2))
+
+p2<-ggplot(data=rep_data2, aes(x=feature, y=prevalence, fill=CellType)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  scale_colour_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_bw() +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        plot.title = ggplot2::element_text(hjust = 0.5, size = 20)) +
+  ggtitle('') + xlab('') +   ylab('Prevalence')
+
+###########
+# Combine #
+###########
+
+p<-plot_grid(p2, NULL, p1, ncol = 1, rel_heights = c(1.25, -0.1, 5))
+p
+```
+
+## Number of significant genes at 5% FDR
+```{r}
+nrow(finresVanilla$res[finresVanilla$res$qval<0.05,])
+nrow(finresCCT$res[finresCCT$res$qval<0.05,])
+nrow(finresCCT$res[finresCCT$res$adjPval<0.05,])
+```
+Using the adjusted p-values,there are 2071 genes significant at 5% FDR in two-part model using Vanilla, there are 1802 genes significant at 5% FDR in two-part model using CCT and there are 1584 genes significant at 5% FDR in DESeq2.
+
+## Session information
+```{r}
+sessionInfo()
+```
