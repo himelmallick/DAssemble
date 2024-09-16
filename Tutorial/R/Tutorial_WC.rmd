@@ -23,10 +23,6 @@ This vignette highlights the example workflow for performing differential expres
 # Clear workspace
 rm(list = ls())
 
-# Set working directory
-workingDirectory='/SFS/user/ctc/pauleri/TPCPLM/analysis/'
-setwd(workingDirectory)
-
 # Load Libraries
 library(tidyverse)
 library(Seurat)
