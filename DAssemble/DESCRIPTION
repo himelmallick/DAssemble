@@ -1,0 +1,30 @@
+Package: DAssemble
+Title: Combine P-Value Data Frames Using Advanced Methods
+Version: 0.0.1
+Authors@R: 
+    c(
+        person("Himel", "Mallick", email = "him4004@med.cornell.edu", role = c("aut", "cre")),
+        person("Jialin", "Gao", email = "jialingao999@gmail.com", role = "aut"),
+        person("Ziyu", "Liu", email = "lclcencen@gmail.com", role = "aut")
+    )
+Description: 
+    The DAssemble package provides a comprehensive framework for combining 
+    multiple p-value data frames using advanced statistical methods such as 
+    Stouffer's method, Cauchy Combination Test (CCT), Fisher's method, harmonic mean, 
+    and more. It includes functionality for applying p-value corrections (e.g., 
+    Benjamini-Hochberg, Bonferroni) and ensures robust handling of missing or 
+    abnormal values. This package is designed for meta-analysis and other 
+    statistical applications requiring efficient and accurate p-value combination.
+License: MIT
+Encoding: UTF-8
+Imports: 
+    metapod,
+    tidyverse,
+    poolr,
+    harmonicmeanp
+Suggests: 
+    testthat,
+    knitr,
+    rmarkdown
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2.9000
