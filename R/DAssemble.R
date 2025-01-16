@@ -1,7 +1,10 @@
-#' Combine P-Value Data Frames Using Different Methods
+#' Ensemble models for differential analysis
 #'
-#' The `DAssemble` function combines multiple p-value data frames using specified methods
-#' (Stouffer's method, CCT, Fisher, etc.) and applies corrections to compute adjusted p-values.
+#' `DAssemble`  is a lightweight implementation of the stacking method as applied to two or more
+#' differential analysis (DA) results tables. It takes as inputs a list of DA tables with p-values
+#' and returns a single table with omnibus p-values and q-values on a per-feature basis.
+#' Several p-value combination methods such as Stouffer's method, CCT, and Fisher are supported.
+#'
 #'
 #' @param dflist A list of data frames to combine. Each data frame must have columns named `ID` and `pvalue`.
 #' @param combine.method A character string specifying the p-value combination method.
@@ -156,4 +159,128 @@ DAssemble <- function(dflist, combine.method = "stouffer", correction = "BH"){
   p.combined<-p.combined[order(p.combined[,ncol(p.combined)]),]
 
   return(p.combined)
+}
+
+# Internal Helper Function 1
+#' Append Adjusted P-Values to Data Frame
+#'
+#' Internal helper function to append corrected p-values to the combined data frame.
+#' @param p.combined A data frame with combined p-values.
+#' @param correction A string specifying the p-value correction method.
+#' @keywords internal
+
+append_qvalues<-function(p.combined, correction = "BH"){
+
+  if(correction == "bonferroni"){
+    p.combined$qval_bonferroni <- tryCatch(p.adjust(p.combined$pval.combined, method = 'bonferroni'),
+                                           error = function(err){NA})
+  }
+
+  if(correction == "holm"){
+    p.combined$qval_holm <- tryCatch(p.adjust(p.combined$pval.combined, method = 'holm'),
+                                     error = function(err){NA})
+  }
+
+  if(correction == "hochberg"){
+    p.combined$qval_hochberg <- tryCatch(p.adjust(p.combined$pval.combined, method = 'hochberg'),
+                                         error = function(err){NA})
+  }
+
+  if(correction == "hommel"){
+    p.combined$qval_hommel <- tryCatch(p.adjust(p.combined$pval.combined, method = 'hommel'),
+                                       error = function(err){NA})
+  }
+
+  if(correction == "BH"){
+    p.combined$qval_BH <- tryCatch(p.adjust(p.combined$pval.combined, method = 'BH'),
+                                   error = function(err){NA})
+  }
+
+  if(correction == "BY"){
+    p.combined$qval_BY <- tryCatch(p.adjust(p.combined$pval.combined, method = 'BY'),
+                                   error = function(err){NA})
+  }
+
+  if(correction == "none"){
+    p.combined$qval_none <- tryCatch(p.adjust(p.combined$pval.combined, method = 'none'),
+                                     error = function(err){NA})
+  }
+
+  return(p.combined)
+}
+
+# Internal Helper Function 2
+#' Combine P-Values Using CCT
+#'
+#' Internal helper function to combine p-values using the CCT method.
+#' @param pvals A vector of p-values.
+#' @param weights Optional weights for the CCT method.
+#' @keywords internal
+CCT <- function(pvals, weights=NULL){
+  #### check if there is NA
+  pvals <- ifelse(is.na(pvals), 1, pvals)
+  # if(sum(is.na(pvals)) > 0){
+  #   stop("Cannot have NAs in the p-values!")
+  # }
+
+  # Check if there are any p-values left
+  if (length(pvals) == 0) {
+    return(NA)
+  }
+
+
+  #### check if all p-values are between 0 and 1
+  if (any(pvals < 0 | pvals > 1)) {
+    stop("All p-values must be between 0 and 1!")
+  }
+
+  #### check if there are p-values that are either exactly 0 or 1.
+  is.zero <- (sum(pvals==0)>=1)
+  is.one <- (sum(pvals==1)>=1)
+  if(is.zero && is.one){
+    stop("Cannot have both 0 and 1 p-values!")
+  }
+  if(is.zero){
+    return(0)
+  }
+  if(is.one){
+    warning("There are p-values that are exactly 1!")
+    return(1)
+  }
+
+  #### check the validity of weights (default: equal weights) and standardize them.
+  if(is.null(weights)){
+    weights <- rep(1/length(pvals),length(pvals))
+  }else if(length(weights)!=length(pvals)){
+    stop("The length of weights should be the same as that of the p-values!")
+  }else if(sum(weights < 0) > 0){
+    stop("All the weights must be positive!")
+  }else{
+    weights <- weights/sum(weights)
+  }
+
+  #### check if there are very small non-zero p-values
+  is.small <- (pvals < 1e-16)
+  if (sum(is.small) == 0){
+    cct.stat <- sum(weights*tan((0.5-pvals)*pi))
+  }else{
+    cct.stat <- sum((weights[is.small]/pvals[is.small])/pi)
+    cct.stat <- cct.stat + sum(weights[!is.small]*tan((0.5-pvals[!is.small])*pi))
+  }
+
+  #### check if the test statistic is very large.
+  if(cct.stat > 1e+15){
+    pval <- (1/cct.stat)/pi
+  }else{
+    pval <- 1-pcauchy(cct.stat)
+  }
+  return(pval)
+}
+
+combinePvalCCT<-function(pvals_matrix){
+
+  # Apply the CCT function to each row
+  combined_p_value <- apply(pvals_matrix, 1, CCT)
+
+  return(combined_p_value)
 }
