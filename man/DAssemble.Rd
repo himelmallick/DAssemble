@@ -2,7 +2,7 @@
 % Please edit documentation in R/DAssemble.R
 \name{DAssemble}
 \alias{DAssemble}
-\title{Combine P-Value Data Frames Using Different Methods}
+\title{Ensemble models for differential analysis}
 \usage{
 DAssemble(dflist, combine.method = "stouffer", correction = "BH")
 }
@@ -26,8 +26,10 @@ A data frame with the following columns:
 }
 }
 \description{
-The \code{DAssemble} function combines multiple p-value data frames using specified methods
-(Stouffer's method, CCT, Fisher, etc.) and applies corrections to compute adjusted p-values.
+\code{DAssemble}  is a lightweight implementation of the stacking method as applied to two or more
+differential analysis (DA) results tables. It takes as inputs a list of DA tables with p-values
+and returns a single table with omnibus p-values and q-values on a per-feature basis.
+Several p-value combination methods such as Stouffer's method, CCT, and Fisher are supported.
 }
 \details{
 \itemize{

@@ -1,5 +1,5 @@
 Package: DAssemble
-Title: Combine P-Value Data Frames Using Advanced Methods
+Title: Ensemble models for differential analysis
 Version: 0.0.1
 Authors@R: 
     c(
@@ -8,13 +8,9 @@ Authors@R:
         person("Ziyu", "Liu", email = "lclcencen@gmail.com", role = "aut")
     )
 Description: 
-    The DAssemble package provides a comprehensive framework for combining 
-    multiple p-value data frames using advanced statistical methods such as 
-    Stouffer's method, Cauchy Combination Test (CCT), Fisher's method, harmonic mean, 
-    and more. It includes functionality for applying p-value corrections (e.g., 
-    Benjamini-Hochberg, Bonferroni) and ensures robust handling of missing or 
-    abnormal values. This package is designed for meta-analysis and other 
-    statistical applications requiring efficient and accurate p-value combination.
+    The DAssemble package implements the ensemble framework for differential analysis.
+    It is a lightweight implementation of the stacking method as applied to two or more 
+    differential analysis (DA) results tables. 
 License: MIT
 Encoding: UTF-8
 Imports: 
