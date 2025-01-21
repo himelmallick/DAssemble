@@ -19,7 +19,12 @@ biocViews:
 Imports: 
     metapod,
     poolr,
-    harmonicmeanp
+    harmonicmeanp,
+    DESeq2,
+    airway,
+    edgeR,
+    limma,
+    tidyverse
 Suggests: 
     testthat,
     knitr,
