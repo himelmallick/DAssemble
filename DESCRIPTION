@@ -1,4 +1,5 @@
 Package: DAssemble
+Type: Package
 Title: Ensemble models for differential analysis
 Version: 0.0.1
 Authors@R: 
@@ -11,16 +12,20 @@ Description:
     The DAssemble package implements the ensemble framework for differential analysis.
     It is a lightweight implementation of the stacking method as applied to two or more 
     differential analysis (DA) results tables. 
-License: MIT
+License: MIT + file LICENSE
 Encoding: UTF-8
+biocViews: 
+    DifferentialExpression
 Imports: 
     metapod,
-    tidyverse,
     poolr,
     harmonicmeanp
 Suggests: 
     testthat,
     knitr,
-    rmarkdown
+    rmarkdown,
+    BiocStyle
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2.9000
+VignetteBuilder: knitr
+URL: https://github.com/Ziyu-Liu-WCM/DAssemble

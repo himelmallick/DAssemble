@@ -9,7 +9,7 @@
 #' @param dflist A list of data frames to combine. Each data frame must have columns named `ID` and `pvalue`.
 #' @param combine.method A character string specifying the p-value combination method.
 #'   Must be one of `"stouffer"`, `"CCT"`, `"fisher"`, `"invchisq"`, `"binomtest"`, `"bonferroni"`,
-#'   `"snippet"`, `"harmonic"`, or `"minP"`. Default is `"stouffer"`.
+#'   `"tippett"`, `"harmonic"`, or `"minP"`. Default is `"stouffer"`.
 #' @param correction A character string specifying the method for p-value correction.
 #'   Default is `"BH"` (Benjamini-Hochberg). Other valid values are `"bonferroni"`, `"holm"`, `"hochberg"`,
 #'   `"hommel"`, `"BH"`, `"BY"`, or `"none"`.
@@ -114,9 +114,12 @@
 #' assemble_res <- DAssemble(dflist, combine.method = "stouffer", correction = "BH")
 #' head(assemble_res)
 #' @export
+#'
+#' @value
+#' A data frame containing the combined results of differential analysis.
 DAssemble <- function(dflist, combine.method = "stouffer", correction = "BH"){
 
-  if(!combine.method %in% c("stouffer", "CCT", "fisher", "invchisq", "binomtest", "bonferroni", "snippet", "harmonic", "minP")) stop("combine.method must be one of stouffer, CCT, invchisq, binomtest, bonferroni, snippet, harmonic, minP")
+  if(!combine.method %in% c("stouffer", "CCT", "fisher", "invchisq", "binomtest", "bonferroni", "tippett", "harmonic", "minP")) stop("combine.method must be one of stouffer, CCT, invchisq, binomtest, bonferroni, tippett, harmonic, minP")
   if(!correction %in% c("bonferroni", "holm", "hochberg", "hommel", "BH", "BY", "none")) stop("correction must be one of bonferroni, holm, hochberg, hommel, BH, BY, none")
 
   if (!requireNamespace("poolr", quietly = TRUE)) {
@@ -131,9 +134,6 @@ DAssemble <- function(dflist, combine.method = "stouffer", correction = "BH"){
     stop("Package 'harmonicmeanp' is required. Please install it.")
   }
 
-  suppressPackageStartupMessages(library("poolr"))
-  suppressPackageStartupMessages(library("metapod"))
-  suppressPackageStartupMessages(library("harmonicmeanp"))
 
   # Ensure at least two dflist are provided
   if (length(dflist) < 2) {
@@ -212,10 +212,10 @@ DAssemble <- function(dflist, combine.method = "stouffer", correction = "BH"){
     }
     p.combined$pval.combined <- pval.combined
 
-  } else if (combine.method=='snippet'){
+  } else if (combine.method=='tippett'){
     pval.combined <- NULL
     for(i in 1 : nrow(pvals_matrix)){
-      pval.combined[i] <- poolr::snippet(pvals_matrix[i,])$p
+      pval.combined[i] <- poolr::tippett(pvals_matrix[i,])$p
     }
     p.combined$pval.combined <- pval.combined
 

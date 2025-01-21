@@ -50,3 +50,4 @@ rsconnect/
 
 # auto file from MacOS
 .DS_Store
+inst/doc

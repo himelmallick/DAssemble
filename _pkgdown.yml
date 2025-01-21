@@ -1,0 +1,9 @@
+template:
+  bootstrap: 5
+navbar:
+  structure:
+    left:
+      - home
+      - reference
+      - articles
+url: https://github.com/Ziyu-Liu-WCM/DAssemble
