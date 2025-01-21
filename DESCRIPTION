@@ -24,7 +24,8 @@ Imports:
     airway,
     edgeR,
     limma,
-    tidyverse
+    tidyverse,
+    dplyr
 Suggests: 
     testthat,
     knitr,
