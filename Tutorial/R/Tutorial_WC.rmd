@@ -24,6 +24,7 @@ This vignette highlights the example workflow for performing differential expres
 rm(list = ls())
 
 # Load Libraries
+library(DAssemble)
 library(tidyverse)
 library(Seurat)
 library(Matrix)
@@ -42,8 +43,10 @@ library(DESeq2)
 library(metapod)
 library(scran)
 library(cowplot)
-
+#install.packages("here")
+library(here)
 # Load Source Files
+setwd(here::here())
 pkgmaker::source_files('./Codes/Real_Data/helper', '*.R')
 ```
 
@@ -111,7 +114,16 @@ paras_WC = fit.Wilcoxon(features = features,
 
 ### Combine results
 ```{r}
-paras = paras_CR %>% right_join(paras_WC, by=c("feature","metadata"))
+paras_CR = paras_CR %>%
+  rownames_to_column("ID") %>%
+  dplyr::rename(pvalue = pval_CR)
+
+paras_WC = paras_WC %>%
+  dplyr::mutate(ID = feature) %>%  
+  dplyr::rename(pvalue = pval)
+
+# Combine the results
+dflist = list(paras_WC, paras_CR)
 ```
 
 ### Attach p-value
@@ -120,25 +132,19 @@ After computation, Brain is a data frame containing coefficient estimates, p-val
 #### Vanilla
 ```{r}
 # P-value: Vanilla
-parasVanilla = paras
-parasVanilla$pval = pmin(parasVanilla$pval_CR, parasVanilla$pval)
+parasVanilla = DAssemble(dflist, combine.method = "minP", correction = "BY")
 
-# Adjusted p-value using Vanilla
-parasVanilla$qval = as.numeric(p.adjust(parasVanilla$pval, method = 'BY'))
-
-# Return output
-parasVanilla = parasVanilla[order(parasVanilla$qval, decreasing = FALSE),]
-finresVanilla = list(res = parasVanilla, features = features)
-finresVanilla$res[1:10,]
+finresVanilla = parasVanilla
+finresVanilla[1:10, ]
 ```
 
-```{r, fig.width=6}
+```{r, fig.width=7}
 # Boxplot (Top 10)
-dataVanilla = finresVanilla$res[1:10,]
+dataVanilla = finresVanilla[1:10,]
 
 plot1 = dataVanilla%>%
-  mutate(feature = reorder(feature, coef.x)) %>%
-  ggplot(aes(x=feature, y = coef.x)) +
+  mutate(feature = reorder(ID, coef.y)) %>%
+  ggplot(aes(x=feature, y = coef.y)) +
   geom_bar(stat="identity", fill="#f68060") +
   coord_flip() +
   ylab(expression('Log'[2]*' fold change'))+
@@ -147,17 +153,17 @@ plot1 = dataVanilla%>%
 grid.arrange(plot1, ncol=1)
 ```
 
-```{r, fig.width=6, fig.height=6,  warning=FALSE}
+```{r, fig.width=7, fig.height=7, warning=FALSE}
 # Raincloud plot (Top 10)
-output = finresVanilla[["res"]]
-data = output[which(output$pval<=0.05 & output$pval_CR>=0.5),][1:10,]
+output = finresVanilla
+data = output[which(output$pvalue1 <= 0.05 & output$pvalue2 >= 0.5), ][1:10,]
 
 scale.factor = SCRANnorm(physeq$features)
 norm.feature = physeq$features/scale.factor
-data1 = norm.feature[,data$feature]
+data1 = norm.feature[,data$ID]
 
 data.plot = cbind(data1, metadata)
-plot_data = gather(data.plot, feature, value, data$feature, factor_key=TRUE)
+plot_data = gather(data.plot, feature, value, data$ID, factor_key=TRUE)
 
 plot_data$value <- log10(plot_data$value)
 plot_data$value[is.nan(plot_data$value)] <- -Inf
@@ -209,25 +215,18 @@ p
 #### CCT
 ```{r, warning=FALSE}
 # P-value: CCT
-parasCCT = paras_CR %>% right_join(paras_WC, by=c("feature","metadata"))
-parasCCT$pval = combinePvalCCT(parasCCT$pval_CR, parasCCT$pval)
-
-# Adjusted p-value using CCT
-parasCCT$qval = as.numeric(p.adjust(parasCCT$pval, method = 'BY'))
-
-# Return output
-parasCCT = parasCCT[order(parasCCT$qval, decreasing = FALSE),]
-finresCCT = list(res = parasCCT, features = features)
-finresCCT$res[1:10,]
+parasCCT = DAssemble(dflist, combine.method = "CCT", correction = "BY")
+finresCCT = parasCCT
+finresCCT[1:10,]
 ```
 
-```{r, fig.width=6}
+```{r, fig.width=7}
 # Boxplot (Top 10)
-dataCCT = finresCCT$res[1:10,]
+dataCCT = finresCCT[1:10,]
 
 plot1 = dataCCT%>%
-  mutate(feature = reorder(feature, coef.x)) %>%
-  ggplot(aes(x=feature, y = coef.x)) +
+  mutate(feature = reorder(ID, coef.y)) %>%
+  ggplot(aes(x=feature, y = coef.y)) +
   geom_bar(stat="identity", fill="#f68060") +
   coord_flip() +
   ylab(expression('Log'[2]*' fold change'))+
@@ -236,17 +235,17 @@ plot1 = dataCCT%>%
 grid.arrange(plot1, ncol=1)
 ```
 
-```{r, fig.width=6, fig.height=6, warning=FALSE}
+```{r, fig.width=7, fig.height=7, warning=FALSE}
 # Raincloud plot (Top 10)
-output = finresCCT[["res"]]
-data = output[which(output$pval<=0.05 & output$pval_CR>=0.5),][1:10,]
+output = finresCCT
+data = output[which(output$pvalue1 <= 0.05 & output$pvalue2 >= 0.5), ][1:10,]
 
 scale.factor = SCRANnorm(physeq$features)
 norm.feature = physeq$features/scale.factor
-data1 = norm.feature[,data$feature]
+data1 = norm.feature[,data$ID]
 
 data.plot = cbind(data1, metadata)
-plot_data = gather(data.plot, feature, value, data$feature, factor_key=TRUE)
+plot_data = gather(data.plot, feature, value, data$ID, factor_key=TRUE)
 
 plot_data$value <- log10(plot_data$value)
 plot_data$value[is.nan(plot_data$value)] <- -Inf
@@ -296,11 +295,11 @@ p
 
 ## Number of significant genes at 5% FDR
 ```{r}
-nrow(finresVanilla$res[finresVanilla$res$qval<0.05,])
-nrow(finresCCT$res[finresCCT$res$qval<0.05,])
-nrow(finresCCT$res[finresCCT$res$adjPval<0.05,])
+nrow(finresVanilla[finresVanilla$qval < 0.05, ])
+nrow(finresCCT[finresCCT$qval < 0.05, ])
+nrow(finresCCT[finresCCT$adjPval < 0.05, ])
 ```
-Using the adjusted p-values,there are 2071 genes significant at 5% FDR in two-part model using Vanilla, there are 1802 genes significant at 5% FDR in two-part model using CCT and there are 1584 genes significant at 5% FDR in DESeq2.
+Using the adjusted p-values,there are 2608 genes significant at 5% FDR in two-part model using Vanilla, there are 2608 genes significant at 5% FDR in two-part model using CCT and there are 1553 genes significant at 5% FDR in DESeq2.
 
 ## Session information
 ```{r}

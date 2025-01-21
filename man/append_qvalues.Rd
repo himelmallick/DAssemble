@@ -4,10 +4,10 @@
 \alias{append_qvalues}
 \title{Append Adjusted P-Values to Data Frame}
 \usage{
-append_qvalues(p.combined, correction = "BH")
+append_qvalues(pvals_matrix, correction = "BH")
 }
 \arguments{
-\item{p.combined}{A data frame with combined p-values.}
+\item{pvals_matrix}{A data frame or matrix containing combined p-values.}
 
 \item{correction}{A string specifying the p-value correction method.}
 }

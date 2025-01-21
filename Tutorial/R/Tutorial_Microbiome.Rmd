@@ -1,0 +1,419 @@
+---
+title: "Case study 3: Interpretable ensemble models for differential expression analysis of Microbiome data"
+author: "Jialin Gao"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Tweedieverse}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette highlights the example workflow for performing differential expression using interpretable ensemble models with a microbiome dataset.
+
+## Load Dataset
+To install Github package, users need to create their own GitHub Personal Access Token (PAT). You can follow this [`guide`](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) if you have trouble creating one.
+```{r, warning=FALSE, message = FALSE}
+# Clear workspace
+rm(list = ls())
+
+# Load libraries
+library(DAssemble)
+library(tidyverse)
+library(Maaslin2)
+library(data.table)
+library(SummarizedExperiment)
+library(Biobase)
+library(scatterplot3d)
+library(withr)
+library(gridExtra)
+library(LOCOM) # devtools::install_github("yijuanhu/LOCOM")
+library(BiocParallel)
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+#install.packages("here")
+library(here)
+# Load Source Files
+setwd(here::here())
+pkgmaker::source_files('./Codes/Real_Data/helper', '*.R')
+```
+
+## Data Loading and Preprocessing
+```{r}
+file_path <- "~/Desktop/DAssemble/Codes/Dataset/HMP2_features_baseline_counts.txt"
+features <- read.table(file_path, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+metadata <- read_tsv('~/Desktop/DAssemble/Codes/Dataset/HMP2_metadata.tsv')
+
+
+input_features <- as.data.frame(features)
+rownames(input_features) <- input_features$ID
+input_features <- input_features[-1] # Remove ID column
+
+
+input_metadata <- as.data.frame(metadata)
+rownames(input_metadata) <- metadata$ID
+
+input_metadata <- na.omit(input_metadata)
+input_metadata <- input_metadata[rownames(input_metadata) %in% rownames(input_features), ]
+
+
+# Assign 1 for IBD (both UC and CD) and 0 for nonIBD
+input_metadata$diagnosis <- ifelse(input_metadata$diagnosis %in% c("UC", "CD"), 1, 0)
+input_metadata$antibiotics <- ifelse(input_metadata$antibiotics == "No", 0, 1)
+input_features <- input_features[row.names(input_features) %in% row.names(input_metadata), ]
+
+```
+
+## Output
+Here, we fit the two part model using MaAsLin2 and LOCOM( A logistic regression model for testing differential abundance in compositional microbiome data). First, we fit the models separately and then combine the two-part model using the p-value combination method CCT.
+
+### Run MaAsLin2
+```{r}
+## MaAslin2
+fit.Maaslin2 <- function(features, metadata, libSize) {
+    #############################
+    # Standard MaAslin2 pipeline #
+    #############################
+
+    # Ensure features and metadata are data frames
+    features <- as.data.frame(features)
+    metadata <- as.data.frame(metadata)
+
+    # Run MaAslin2
+    fit_data <- Maaslin2(input_data = features,
+                         min_abundance = - Inf,
+                         input_metadata = metadata,
+                         output = "Maaslin2_output",
+                         normalization = "TSS",
+                         transform = "LOG",
+                         fixed_effects = c("diagnosis","age","antibiotics"))
+
+    res_df <- fit_data$results
+    # Extract coefficients and p-values
+    coef <- res_df$coef
+    pval_CR <- res_df$pval
+    paras <- data.frame(coef_CR = coef, pval_CR = pval_CR)
+    paras$feature <- res_df$feature
+
+
+    #################
+    # Return output #
+    #################
+
+    paras <- dplyr::select(paras, c('feature'), everything())
+    paras$metadata <- res_df$name
+    rownames(paras) <- NULL
+    return(paras)
+}
+
+libSize <- rowSums(input_features)
+
+paras_CR <- fit.Maaslin2(input_features, input_metadata, libSize)
+# Filter results to only include entries related to 'diagnosis'
+paras_CR_diagnosis <- paras_CR[paras_CR$metadata == "diagnosis", ]
+print(paras_CR_diagnosis)
+```
+
+### Run LOCOM
+```{r}
+fit.LOCOM <- function(features, metadata, libSize, ID){
+  
+  #############
+  # Run LOCOM #
+  #############
+  otu.table <- as.matrix(input_features)
+  Y <- as.numeric(input_metadata[, c("diagnosis")])
+  C <- data.frame(age = as.numeric(input_metadata[, "age"]), 
+                      antibiotics = as.numeric(input_metadata[, "antibiotics"]))
+  
+  filter.threshold <- 0
+  res <- locom(otu.table = otu.table, Y = Y, C = C, fdr.nominal = 0.1, seed = 1, n.perm.max = 10000,  filter.thresh = filter.threshold)
+  
+  paras <- data.frame(pval_LO = res$p.otu[1,], coef_LO = res$effect.size[1,])
+
+  paras$feature <- rownames(paras)
+  paras$metadata <- "diagnosis"
+  
+  #################
+  # Return output #
+  #################
+  
+  paras <- paras[order(paras$pval_LO, decreasing = FALSE),]
+  paras <- dplyr::select(paras, c('feature'), everything())
+  
+  rownames(paras) <- NULL
+  return(paras) 
+}
+
+paras_LO <- fit.LOCOM(input_features, input_metadata, libSize, ID)
+paras_LO
+
+```
+
+### Combine results
+```{r}
+paras_CR <- paras_CR_diagnosis %>%
+  dplyr::mutate(ID = feature) %>%  
+  dplyr::rename(pvalue = pval_CR) 
+
+paras_LO = paras_LO %>%
+  dplyr::mutate(ID = feature) %>%  
+  dplyr::rename(pvalue = pval_LO)
+
+# Combine the results
+dflist = list(paras_LO, paras_CR)
+```
+
+After running MaAsLin2 and LOCOM, we use Vanilla, Cauchy Combination Test (CCT) and stouffer to combine p-values and calculate q-values based on combined p-values. We can use the DAssemble() from library(DAssemble).
+
+#### Vanilla
+```{r}
+# P-value: Vanilla
+parasVanilla = DAssemble(dflist, combine.method = "minP", correction = "BH")
+parasVanilla[1:10, ]
+```
+#### CCT
+```{r, warning=FALSE}
+# P-value: CCT
+parasCCT = DAssemble(dflist, combine.method = "CCT", correction = "BH")
+parasCCT[1:10,]
+```
+#### stouffer
+```{r, warning=FALSE}
+# P-value: stouffer
+parasStouffer = DAssemble(dflist, combine.method = "stouffer", correction = "BH")
+parasStouffer[1:10,]
+```
+
+
+## Results Comparison 
+
+### LOCOM vs MaAsLin2(CCT)
+```{r, fig.width=7, fig.height=5.5, warning=FALSE}
+# Rank features based on q-value and select top 10 features
+top_10 <- parasCCT %>%
+  arrange(qval_BH) %>%
+  slice_head(n = 10) %>%
+  mutate(
+    feature = coalesce(feature.x, feature.y), 
+    pval_CR_log10 = -log10(pvalue2),          # From MaAsLin2 results
+    pval_LO_log10 = -log10(pvalue1)           # From LOCOM results
+  )
+
+pval_range <- range(c(top_10$pval_CR_log10, abs(top_10$pval_LO_log10)))
+breaks_pretty_pval <- pretty(c(-max(pval_range), max(pval_range)), n = 5)
+
+pyramid_plot_pval <- ggplot(top_10) +
+  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -pval_LO_log10, fill = "LOCOM"), position = "identity") +
+  labs(y = "-log10(p-value)", x = "") +  
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.y = element_text(size = 10, face = "italic"),
+    axis.text.x = element_text(size = 10)
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
+  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
+
+coef_range <- range(c(top_10$coef_CR, abs(top_10$coef_LO)))
+breaks_pretty_coef <- pretty(c(-max(coef_range), max(coef_range)), n = 5)
+
+pyramid_plot_coef <- ggplot(top_10) +
+  geom_col(aes(x = feature, y = abs(coef_CR), fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -abs(coef_LO), fill = "LOCOM"), position = "identity") +
+  geom_text(aes(x = feature, y = abs(coef_CR), label = ifelse(coef_CR > 0, "+", "-"), hjust = -0.3), size = 4) +
+geom_text(aes(x = feature, y = -abs(coef_LO), label = ifelse(coef_LO > 0, "+", "-"), hjust = 1.3), size = 4) +
+  labs(y = "Coefficient", fill = "") +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    axis.title.y = element_blank(), 
+    axis.text.y = element_blank(), 
+    axis.ticks.y = element_blank(), 
+    plot.title = element_blank()
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
+  scale_y_continuous(breaks = breaks_pretty_coef, labels = abs(breaks_pretty_coef), limits = range(breaks_pretty_coef))
+
+combined_plot <- plot_grid(
+  pyramid_plot_pval,
+  pyramid_plot_coef,
+  ncol = 2,
+  align = "h"
+)
+
+final_plot <- plot_grid(
+  ggdraw() + draw_label(
+    "", 
+    x = 0.5, hjust = 0.5, size = 13
+  ),
+  combined_plot,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+
+print(final_plot)
+
+```
+
+### LOCOM vs MaAsLin2(Stouffer)
+```{r, fig.width=7, fig.height=5.5, warning=FALSE}
+top_10 <- parasStouffer %>%
+  arrange(qval_BH) %>%
+  slice_head(n = 10) %>%
+  mutate(
+    feature = coalesce(feature.x, feature.y), 
+    pval_CR_log10 = -log10(pvalue2),          # From MaAsLin2 results
+    pval_LO_log10 = -log10(pvalue1)           # From LOCOM results
+  )
+
+pval_range <- range(c(top_10$pval_CR_log10, abs(top_10$pval_LO_log10)))
+breaks_pretty_pval <- pretty(c(-max(pval_range), max(pval_range)), n = 5)
+
+pyramid_plot_pval <- ggplot(top_10) +
+  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -pval_LO_log10, fill = "LOCOM"), position = "identity") +
+  labs(y = "-log10(p-value)", x = "") +  
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.y = element_text(size = 10, face = "italic"),
+    axis.text.x = element_text(size = 10)
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
+  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
+
+coef_range <- range(c(top_10$coef_CR, abs(top_10$coef_LO)))
+breaks_pretty_coef <- pretty(c(-max(coef_range), max(coef_range)), n = 5)
+
+pyramid_plot_coef <- ggplot(top_10) +
+  geom_col(aes(x = feature, y = abs(coef_CR), fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -abs(coef_LO), fill = "LOCOM"), position = "identity") +
+  geom_text(aes(x = feature, y = abs(coef_CR), label = ifelse(coef_CR > 0, "+", "-"), hjust = -0.3), size = 4) +
+geom_text(aes(x = feature, y = -abs(coef_LO), label = ifelse(coef_LO > 0, "+", "-"), hjust = 1.3), size = 4) +
+  labs(y = "Coefficient", fill = "") +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    axis.title.y = element_blank(), 
+    axis.text.y = element_blank(), 
+    axis.ticks.y = element_blank(), 
+    plot.title = element_blank()
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
+  scale_y_continuous(breaks = breaks_pretty_coef, labels = abs(breaks_pretty_coef), limits = range(breaks_pretty_coef))
+
+combined_plot <- plot_grid(
+  pyramid_plot_pval,
+  pyramid_plot_coef,
+  ncol = 2,
+  align = "h"
+)
+
+final_plot <- plot_grid(
+  ggdraw() + draw_label(
+    "", 
+    x = 0.5, hjust = 0.5, size = 13
+  ),
+  combined_plot,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+
+print(final_plot)
+```
+
+
+### LOCOM vs MaAsLin2(Vanilla_Combine)
+```{r, fig.width=7, fig.height=5.5, warning=FALSE}
+top_10 <- parasVanilla %>%
+  arrange(qval_BH) %>%
+  slice_head(n = 10) %>%
+  mutate(
+    feature = coalesce(feature.x, feature.y),  
+    pval_CR_log10 = -log10(pvalue2),          # From MaAsLin2 results
+    pval_LO_log10 = -log10(pvalue1)           # From LOCOM results
+  )
+
+pval_range <- range(c(top_10$pval_CR_log10, abs(top_10$pval_LO_log10)))
+breaks_pretty_pval <- pretty(c(-max(pval_range), max(pval_range)), n = 5)
+
+pyramid_plot_pval <- ggplot(top_10) +
+  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -pval_LO_log10, fill = "LOCOM"), position = "identity") +
+  labs(y = "-log10(p-value)", x = "") +  
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.y = element_text(size = 10, face = "italic"),
+    axis.text.x = element_text(size = 10)
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
+  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
+
+coef_range <- range(c(top_10$coef_CR, abs(top_10$coef_LO)))
+breaks_pretty_coef <- pretty(c(-max(coef_range), max(coef_range)), n = 5)
+
+pyramid_plot_coef <- ggplot(top_10) +
+  geom_col(aes(x = feature, y = abs(coef_CR), fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -abs(coef_LO), fill = "LOCOM"), position = "identity") +
+  geom_text(aes(x = feature, y = abs(coef_CR), label = ifelse(coef_CR > 0, "+", "-"), hjust = -0.3), size = 4) +
+geom_text(aes(x = feature, y = -abs(coef_LO), label = ifelse(coef_LO > 0, "+", "-"), hjust = 1.3), size = 4) +
+  labs(y = "Coefficient", fill = "") +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    axis.title.y = element_blank(), 
+    axis.text.y = element_blank(), 
+    axis.ticks.y = element_blank(), 
+    plot.title = element_blank()
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
+  scale_y_continuous(breaks = breaks_pretty_coef, labels = abs(breaks_pretty_coef), limits = range(breaks_pretty_coef))
+
+combined_plot <- plot_grid(
+  pyramid_plot_pval,
+  pyramid_plot_coef,
+  ncol = 2,
+  align = "h"
+)
+
+final_plot <- plot_grid(
+  ggdraw() + draw_label(
+    "", 
+    x = 0.5, hjust = 0.5, size = 13
+  ),
+  combined_plot,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+
+print(final_plot)
+```
+
+## Session information
+```{r}
+sessionInfo()
+```
+
