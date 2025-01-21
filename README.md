@@ -1,6 +1,6 @@
 # DAssemble
 
-[![R build status](https://github.com/Ziyu-Liu-WCM/DAssemble/workflows/check-bioc/badge.svg)](https://github.com/Ziyu-Liu-WCM/DAssemble/actions)
+[![R build status](https://github.com/Ziyu-Liu-WCM/DAssemble/workflows/R-CMD-check-bioc/badge.svg)](https://github.com/Ziyu-Liu-WCM/DAssemble/actions)
 
 DAssemble is a lightweight implementation of the stacking method as
 applied to two or more differential analysis (DA) results tables. It
