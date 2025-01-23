@@ -1,0 +1,150 @@
+2025-01-21 19:38:05.138335 INFO::Writing function arguments to log file
+2025-01-21 19:38:05.141246 DEBUG::Function arguments
+2025-01-21 19:38:05.142115 DEBUG::Output folder: Maaslin2_output
+2025-01-21 19:38:05.143255 DEBUG::Min Abundance: -Inf
+2025-01-21 19:38:05.143815 DEBUG::Min Prevalence: 0.100000
+2025-01-21 19:38:05.144303 DEBUG::Normalization: TSS
+2025-01-21 19:38:05.144821 DEBUG::Transform: LOG
+2025-01-21 19:38:05.145695 DEBUG::Analysis method: LM
+2025-01-21 19:38:05.146354 DEBUG::Max significance: 0.250000
+2025-01-21 19:38:05.147119 DEBUG::Random effects:
+2025-01-21 19:38:05.147835 DEBUG::Fixed effects: diagnosis,age,antibiotics
+2025-01-21 19:38:05.148492 DEBUG::Correction method: BH
+2025-01-21 19:38:05.149 DEBUG::Standardize: TRUE
+2025-01-21 19:38:05.149486 DEBUG::Cores: 1
+2025-01-21 19:38:05.149904 INFO::Verifying options selected are valid
+2025-01-21 19:38:05.15156 INFO::Determining format of input files
+2025-01-21 19:38:05.153014 INFO::Input format is data samples as rows and metadata samples as rows
+2025-01-21 19:38:05.155394 DEBUG::A total of 111 samples were found in both the data and metadata
+2025-01-21 19:38:05.156188 DEBUG::Reordering data/metadata to use same sample ordering
+2025-01-21 19:38:05.158369 INFO::Formula for fixed effects: expr ~  diagnosis + age + antibiotics
+2025-01-21 19:38:05.160237 INFO::Filter data based on min abundance and min prevalence
+2025-01-21 19:38:05.161945 INFO::Total samples in data: 111
+2025-01-21 19:38:05.163321 INFO::Min samples required with min abundance for a feature not to be filtered: 11.100000
+2025-01-21 19:38:05.166298 INFO::Total filtered features: 0
+2025-01-21 19:38:05.168025 INFO::Filtered feature names from abundance and prevalence filtering:
+2025-01-21 19:38:05.173069 INFO::Total filtered features with variance filtering: 0
+2025-01-21 19:38:05.174689 INFO::Filtered feature names from variance filtering:
+2025-01-21 19:38:05.176472 INFO::Running selected normalization method: TSS
+2025-01-21 19:38:05.180275 INFO::Applying z-score to standardize continuous metadata
+2025-01-21 19:38:05.18867 INFO::Running selected transform method: LOG
+2025-01-21 19:38:05.191933 INFO::Running selected analysis method: LM
+2025-01-21 19:38:05.194772 INFO::Fitting model to feature number 1, Bifidobacterium.adolescentis
+2025-01-21 19:38:05.200411 INFO::Fitting model to feature number 2, Bifidobacterium.bifidum
+2025-01-21 19:38:05.204858 INFO::Fitting model to feature number 3, Bifidobacterium.longum
+2025-01-21 19:38:05.209169 INFO::Fitting model to feature number 4, Bifidobacterium.pseudocatenulatum
+2025-01-21 19:38:05.213542 INFO::Fitting model to feature number 5, Collinsella.aerofaciens
+2025-01-21 19:38:05.217323 INFO::Fitting model to feature number 6, Bacteroides.caccae
+2025-01-21 19:38:05.221111 INFO::Fitting model to feature number 7, Bacteroides.cellulosilyticus
+2025-01-21 19:38:05.225246 INFO::Fitting model to feature number 8, Bacteroides.dorei
+2025-01-21 19:38:05.229216 INFO::Fitting model to feature number 9, Bacteroides.eggerthii
+2025-01-21 19:38:05.23355 INFO::Fitting model to feature number 10, Bacteroides.faecis
+2025-01-21 19:38:05.237311 INFO::Fitting model to feature number 11, Bacteroides.finegoldii
+2025-01-21 19:38:05.241309 INFO::Fitting model to feature number 12, Bacteroides.fragilis
+2025-01-21 19:38:05.245392 INFO::Fitting model to feature number 13, Bacteroides.intestinalis
+2025-01-21 19:38:05.249326 INFO::Fitting model to feature number 14, Bacteroides.massiliensis
+2025-01-21 19:38:05.253175 INFO::Fitting model to feature number 15, Bacteroides.ovatus
+2025-01-21 19:38:05.257095 INFO::Fitting model to feature number 16, Bacteroides.salyersiae
+2025-01-21 19:38:05.260849 INFO::Fitting model to feature number 17, Bacteroides.stercoris
+2025-01-21 19:38:05.26463 INFO::Fitting model to feature number 18, Bacteroides.thetaiotaomicron
+2025-01-21 19:38:05.268637 INFO::Fitting model to feature number 19, Bacteroides.uniformis
+2025-01-21 19:38:05.272594 INFO::Fitting model to feature number 20, Bacteroides.vulgatus
+2025-01-21 19:38:05.276624 INFO::Fitting model to feature number 21, Bacteroides.xylanisolvens
+2025-01-21 19:38:05.28087 INFO::Fitting model to feature number 22, Bacteroidales.bacterium.ph8
+2025-01-21 19:38:05.284773 INFO::Fitting model to feature number 23, Barnesiella.intestinihominis
+2025-01-21 19:38:05.28875 INFO::Fitting model to feature number 24, Coprobacter.fastidiosus
+2025-01-21 19:38:05.292975 INFO::Fitting model to feature number 25, Odoribacter.splanchnicus
+2025-01-21 19:38:05.297147 INFO::Fitting model to feature number 26, Parabacteroides.distasonis
+2025-01-21 19:38:05.301131 INFO::Fitting model to feature number 27, Parabacteroides.goldsteinii
+2025-01-21 19:38:05.305052 INFO::Fitting model to feature number 28, Parabacteroides.merdae
+2025-01-21 19:38:05.308737 INFO::Fitting model to feature number 29, Parabacteroides.unclassified
+2025-01-21 19:38:05.312422 INFO::Fitting model to feature number 30, Paraprevotella.clara
+2025-01-21 19:38:05.316493 INFO::Fitting model to feature number 31, Paraprevotella.unclassified
+2025-01-21 19:38:05.320347 INFO::Fitting model to feature number 32, Prevotella.copri
+2025-01-21 19:38:05.324209 INFO::Fitting model to feature number 33, Alistipes.finegoldii
+2025-01-21 19:38:05.328284 INFO::Fitting model to feature number 34, Alistipes.onderdonkii
+2025-01-21 19:38:05.33212 INFO::Fitting model to feature number 35, Alistipes.putredinis
+2025-01-21 19:38:05.33615 INFO::Fitting model to feature number 36, Alistipes.shahii
+2025-01-21 19:38:05.340182 INFO::Fitting model to feature number 37, Alistipes.unclassified
+2025-01-21 19:38:05.344259 INFO::Fitting model to feature number 38, Streptococcus.salivarius
+2025-01-21 19:38:05.348089 INFO::Fitting model to feature number 39, Clostridium.bolteae
+2025-01-21 19:38:05.352161 INFO::Fitting model to feature number 40, Clostridium.citroniae
+2025-01-21 19:38:05.356153 INFO::Fitting model to feature number 41, Clostridium.clostridioforme
+2025-01-21 19:38:05.360089 INFO::Fitting model to feature number 42, Clostridium.hathewayi
+2025-01-21 19:38:05.364194 INFO::Fitting model to feature number 43, Clostridium.leptum
+2025-01-21 19:38:05.368104 INFO::Fitting model to feature number 44, Clostridium.nexile
+2025-01-21 19:38:05.37234 INFO::Fitting model to feature number 45, Clostridium.symbiosum
+2025-01-21 19:38:05.376569 INFO::Fitting model to feature number 46, Flavonifractor.plautii
+2025-01-21 19:38:05.380939 INFO::Fitting model to feature number 47, Eubacterium.eligens
+2025-01-21 19:38:05.384874 INFO::Fitting model to feature number 48, Eubacterium.hallii
+2025-01-21 19:38:05.388932 INFO::Fitting model to feature number 49, Eubacterium.rectale
+2025-01-21 19:38:05.392797 INFO::Fitting model to feature number 50, Eubacterium.siraeum
+2025-01-21 19:38:05.396846 INFO::Fitting model to feature number 51, Eubacterium.sp.3.1.31
+2025-01-21 19:38:05.401006 INFO::Fitting model to feature number 52, Eubacterium.ventriosum
+2025-01-21 19:38:05.405265 INFO::Fitting model to feature number 53, Ruminococcus.gnavus
+2025-01-21 19:38:05.409848 INFO::Fitting model to feature number 54, Ruminococcus.obeum
+2025-01-21 19:38:05.41374 INFO::Fitting model to feature number 55, Ruminococcus.torques
+2025-01-21 19:38:05.417577 INFO::Fitting model to feature number 56, Coprococcus.comes
+2025-01-21 19:38:05.421611 INFO::Fitting model to feature number 57, Dorea.longicatena
+2025-01-21 19:38:05.425615 INFO::Fitting model to feature number 58, Lachnospiraceae.bacterium.1.1.57FAA
+2025-01-21 19:38:05.429698 INFO::Fitting model to feature number 59, Lachnospiraceae.bacterium.3.1.46FAA
+2025-01-21 19:38:05.433787 INFO::Fitting model to feature number 60, Roseburia.hominis
+2025-01-21 19:38:05.437792 INFO::Fitting model to feature number 61, Roseburia.intestinalis
+2025-01-21 19:38:05.441984 INFO::Fitting model to feature number 62, Roseburia.inulinivorans
+2025-01-21 19:38:05.446403 INFO::Fitting model to feature number 63, Roseburia.unclassified
+2025-01-21 19:38:05.450647 INFO::Fitting model to feature number 64, Oscillibacter.unclassified
+2025-01-21 19:38:05.454732 INFO::Fitting model to feature number 65, Peptostreptococcaceae.noname.unclassified
+2025-01-21 19:38:05.45898 INFO::Fitting model to feature number 66, Faecalibacterium.prausnitzii
+2025-01-21 19:38:05.463202 INFO::Fitting model to feature number 67, Ruminococcus.bromii
+2025-01-21 19:38:05.467443 INFO::Fitting model to feature number 68, Ruminococcus.callidus
+2025-01-21 19:38:05.471759 INFO::Fitting model to feature number 69, Ruminococcus.lactaris
+2025-01-21 19:38:05.476107 INFO::Fitting model to feature number 70, Subdoligranulum.unclassified
+2025-01-21 19:38:05.480472 INFO::Fitting model to feature number 71, Coprobacillus.unclassified
+2025-01-21 19:38:05.484479 INFO::Fitting model to feature number 72, Acidaminococcus.unclassified
+2025-01-21 19:38:05.488534 INFO::Fitting model to feature number 73, Dialister.invisus
+2025-01-21 19:38:05.492852 INFO::Fitting model to feature number 74, Veillonella.atypica
+2025-01-21 19:38:05.49726 INFO::Fitting model to feature number 75, Veillonella.dispar
+2025-01-21 19:38:05.50166 INFO::Fitting model to feature number 76, Veillonella.parvula
+2025-01-21 19:38:05.505984 INFO::Fitting model to feature number 77, Veillonella.unclassified
+2025-01-21 19:38:05.510239 INFO::Fitting model to feature number 78, Burkholderiales.bacterium.1.1.47
+2025-01-21 19:38:05.514642 INFO::Fitting model to feature number 79, Parasutterella.excrementihominis
+2025-01-21 19:38:05.519226 INFO::Fitting model to feature number 80, Sutterella.wadsworthensis
+2025-01-21 19:38:05.523709 INFO::Fitting model to feature number 81, Bilophila.unclassified
+2025-01-21 19:38:05.527822 INFO::Fitting model to feature number 82, Escherichia.coli
+2025-01-21 19:38:05.532567 INFO::Fitting model to feature number 83, Escherichia.unclassified
+2025-01-21 19:38:05.537208 INFO::Fitting model to feature number 84, Klebsiella.pneumoniae
+2025-01-21 19:38:05.541696 INFO::Fitting model to feature number 85, Haemophilus.parainfluenzae
+2025-01-21 19:38:05.54639 INFO::Fitting model to feature number 86, Akkermansia.muciniphila
+2025-01-21 19:38:05.55094 INFO::Fitting model to feature number 87, C2likevirus.unclassified
+2025-01-21 19:38:05.568687 INFO::Counting total values for each feature
+2025-01-21 19:38:05.579966 INFO::Writing filtered data to file Maaslin2_output/features/filtered_data.tsv
+2025-01-21 19:38:05.586032 INFO::Writing filtered, normalized data to file Maaslin2_output/features/filtered_data_norm.tsv
+2025-01-21 19:38:05.597767 INFO::Writing filtered, normalized, transformed data to file Maaslin2_output/features/filtered_data_norm_transformed.tsv
+2025-01-21 19:38:05.609395 WARNING::Deleting existing residuals file: Maaslin2_output/fits/residuals.rds
+2025-01-21 19:38:05.61161 INFO::Writing residuals to file Maaslin2_output/fits/residuals.rds
+2025-01-21 19:38:05.61636 WARNING::Deleting existing fitted file: Maaslin2_output/fits/fitted.rds
+2025-01-21 19:38:05.617903 INFO::Writing fitted values to file Maaslin2_output/fits/fitted.rds
+2025-01-21 19:38:05.621828 INFO::Writing all results to file (ordered by increasing q-values): Maaslin2_output/all_results.tsv
+2025-01-21 19:38:05.626463 INFO::Writing the significant results (those which are less than or equal to the threshold of 0.250000 ) to file (ordered by increasing q-values): Maaslin2_output/significant_results.tsv
+2025-01-21 19:38:05.628141 INFO::Writing heatmap of significant results to file: Maaslin2_output/heatmap.pdf
+2025-01-21 19:38:05.671278 INFO::Writing association plots (one for each significant association) to output folder: Maaslin2_output
+2025-01-21 19:38:05.674287 INFO::Plotting associations from most to least significant, grouped by metadata
+2025-01-21 19:38:05.675575 INFO::Plotting data for metadata number 1, antibiotics
+2025-01-21 19:38:05.678378 INFO::Creating boxplot for categorical data, antibiotics vs Coprobacter.fastidiosus
+2025-01-21 19:38:05.834054 INFO::Creating boxplot for categorical data, antibiotics vs Acidaminococcus.unclassified
+2025-01-21 19:38:05.960772 INFO::Creating boxplot for categorical data, antibiotics vs Klebsiella.pneumoniae
+2025-01-21 19:38:06.137725 INFO::Creating boxplot for categorical data, antibiotics vs Streptococcus.salivarius
+2025-01-21 19:38:09.025948 INFO::Creating boxplot for categorical data, antibiotics vs Eubacterium.hallii
+2025-01-21 19:38:09.952744 INFO::Plotting data for metadata number 2, age
+2025-01-21 19:38:09.95462 INFO::Creating scatter plot for continuous data, age vs Ruminococcus.gnavus
+2025-01-21 19:38:10.103406 INFO::Creating scatter plot for continuous data, age vs Ruminococcus.bromii
+2025-01-21 19:38:11.208187 INFO::Creating scatter plot for continuous data, age vs Veillonella.parvula
+2025-01-21 19:38:11.411999 INFO::Creating scatter plot for continuous data, age vs Haemophilus.parainfluenzae
+2025-01-21 19:38:11.560987 INFO::Creating scatter plot for continuous data, age vs Bifidobacterium.longum
+2025-01-21 19:38:11.715727 INFO::Creating scatter plot for continuous data, age vs Bifidobacterium.pseudocatenulatum
+2025-01-21 19:38:11.856855 INFO::Creating scatter plot for continuous data, age vs Bacteroides.ovatus
+2025-01-21 19:38:12.005706 INFO::Creating scatter plot for continuous data, age vs Clostridium.clostridioforme
+2025-01-21 19:38:12.13927 INFO::Creating scatter plot for continuous data, age vs Eubacterium.siraeum
+2025-01-21 19:38:12.788568 INFO::Creating scatter plot for continuous data, age vs Veillonella.atypica
+2025-01-21 19:38:14.790726 INFO::Plotting data for metadata number 3, diagnosis
+2025-01-21 19:38:14.79326 INFO::Creating boxplot for categorical data, diagnosis vs Alistipes.putredinis
