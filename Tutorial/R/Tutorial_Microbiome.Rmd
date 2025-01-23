@@ -73,7 +73,7 @@ input_features <- input_features[row.names(input_features) %in% row.names(input_
 ```
 
 ## Output
-Here, we fit the two part model using MaAsLin2 and LOCOM( A logistic regression model for testing differential abundance in compositional microbiome data). First, we fit the models separately and then combine the two-part model using the p-value combination method CCT.
+Here, we fit the two part model using MaAsLin2 and LOCOM( A logistic regression model for testing differential abundance in compositional microbiome data). First, we fit the models separately and then combine the two-part model using p-value combination methods.
 
 ### Run MaAsLin2
 ```{r}
@@ -172,29 +172,40 @@ paras_LO = paras_LO %>%
 dflist = list(paras_LO, paras_CR)
 ```
 
-After running MaAsLin2 and LOCOM, we use Vanilla, Cauchy Combination Test (CCT) and stouffer to combine p-values and calculate q-values based on combined p-values. We can use the DAssemble() from library(DAssemble).
+After running MaAsLin2 and LOCOM, we use Vanilla, Cauchy Combination Test (CCT) and stouffer to combine p-values and calculate q-values based on combined p-values. We can use the DAssemble() from library(DAssemble) for this step.
 
 #### Vanilla
 ```{r}
 # P-value: Vanilla
 parasVanilla = DAssemble(dflist, combine.method = "minP", correction = "BH")
+
+# Sort the combined results by pval.combined
+parasVanilla <- parasVanilla %>%
+  dplyr::arrange(pval.combined)
+
 parasVanilla[1:10, ]
 ```
 #### CCT
 ```{r, warning=FALSE}
 # P-value: CCT
 parasCCT = DAssemble(dflist, combine.method = "CCT", correction = "BH")
-parasCCT[1:10,]
+parasCCT <- parasCCT %>%
+  dplyr::arrange(pval.combined)
+parasCCT[1:10, ]
 ```
 #### stouffer
 ```{r, warning=FALSE}
 # P-value: stouffer
 parasStouffer = DAssemble(dflist, combine.method = "stouffer", correction = "BH")
+parasStouffer <- parasStouffer %>%
+  dplyr::arrange(pval.combined)
 parasStouffer[1:10,]
 ```
 
 
 ## Results Comparison 
+To compare LOCOM and MaAsLin2 using different combination methods, we create plots to display the top 10 genes identified based on their q-values. The left panel compares the -log10(p-values) obtained from each method, with higher values indicating greater
+statistical significance and providing a clearer interpretation of significance levels across genes. The right panel presents the estimated coefficients (effect sizes) from each method for the samegenes, with plus (+) and minus (-) symbols indicating positive and negative associations, respectively. 
 
 ### LOCOM vs MaAsLin2(CCT)
 ```{r, fig.width=7, fig.height=5.5, warning=FALSE}
