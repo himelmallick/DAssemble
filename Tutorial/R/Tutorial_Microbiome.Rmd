@@ -1,5 +1,6 @@
 ---
-title: "Case study 3: Interpretable ensemble models for differential expression analysis of Microbiome data"
+title: 'Case study 3: Interpretable ensemble models for differential expression analysis
+  of Microbiome data'
 author: "Jialin Gao"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
@@ -8,7 +9,6 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
-
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -18,413 +18,612 @@ knitr::opts_chunk$set(
 
 This vignette highlights the example workflow for performing differential expression using interpretable ensemble models with a microbiome dataset.
 
-## Load Dataset
-To install Github package, users need to create their own GitHub Personal Access Token (PAT). You can follow this [`guide`](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) if you have trouble creating one.
+## Install and load packages
 ```{r, warning=FALSE, message = FALSE}
 # Clear workspace
 rm(list = ls())
-
-# Load libraries
-library(DAssemble)
-library(tidyverse)
-library(Maaslin2)
-library(data.table)
-library(SummarizedExperiment)
-library(Biobase)
-library(scatterplot3d)
-library(withr)
-library(gridExtra)
-library(LOCOM) # devtools::install_github("yijuanhu/LOCOM")
-library(BiocParallel)
-library(ggplot2)
-library(cowplot)
+#install.packages(c("lme4", "dplyr"))
+library(lme4)
 library(dplyr)
-#install.packages("here")
+library(readr)
+library(foreach)
+library(doParallel)
+library(Maaslin2)
+library(ANCOMBC)
+library(TreeSummarizedExperiment)
+library(S4Vectors)
+library(ANCOMBC)
+library(tibble)
+library(MicrobiomeStat)
+library(DAssemble)
+library(cowplot)
+library(ggplot2)
+library(vegan)
+library(plyr)
+library(LOCOM)
+library(DESeq2)
+library(edgeR)
+library(LOCOM)
+library(ALDEx2)
+library(ggplot2)
+library(writexl)
+library(stringr)
+
+#BiocManager::install("ALDEx2")
+library(ANCOMBC)
+library(TreeSummarizedExperiment)
+
+package_vec = c("reshape2", "ggplot2", "optparse", 
+                "parallel", "stringi", "doParallel", "plyr", "tidyr", 'dplyr', 'vegan',
+                'Maaslin2','ALDEx2')
+loaded_packages <- intersect(package_vec, .packages())
+
 library(here)
 # Load Source Files
 setwd(here::here())
-pkgmaker::source_files('./Codes/Real_Data/helper', '*.R')
+#pkgmaker::source_files('./Codes/Real_Data/helper', '*.R')
 ```
+
 
 ## Data Loading and Preprocessing
+The Preprocssing step is same with MaAsLin3 benchmark
+https://github.com/WillNickols/maaslin3_benchmark/tree/main/HMP2/analysis/run_scripts
+
 ```{r}
-file_path <- "~/Desktop/DAssemble/Codes/Dataset/HMP2_features_baseline_counts.txt"
-features <- read.table(file_path, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-metadata <- read_tsv('~/Desktop/DAssemble/Codes/Dataset/HMP2_metadata.tsv')
+# Manually define directories and parameters (for RStudio use)
+workingDirectory <- "~/Desktop/DAssemble"
+analysisDirectory <- "~/Desktop/DAssemble"
 
+nCores <- 6  # Adjust based on your system
+dataset <- "taxa"  # Choose 'taxa'
+version <- 4  # Set MetaPhlAn version (3 or 4)
 
-input_features <- as.data.frame(features)
-rownames(input_features) <- input_features$ID
-input_features <- input_features[-1] # Remove ID column
-
-
-input_metadata <- as.data.frame(metadata)
-rownames(input_metadata) <- metadata$ID
-
-input_metadata <- na.omit(input_metadata)
-input_metadata <- input_metadata[rownames(input_metadata) %in% rownames(input_features), ]
-
-
-# Assign 1 for IBD (both UC and CD) and 0 for nonIBD
-input_metadata$diagnosis <- ifelse(input_metadata$diagnosis %in% c("UC", "CD"), 1, 0)
-input_metadata$antibiotics <- ifelse(input_metadata$antibiotics == "No", 0, 1)
-input_features <- input_features[row.names(input_features) %in% row.names(input_metadata), ]
-
-```
-
-## Output
-Here, we fit the two part model using MaAsLin2 and LOCOM( A logistic regression model for testing differential abundance in compositional microbiome data). First, we fit the models separately and then combine the two-part model using p-value combination methods.
-
-### Run MaAsLin2
-```{r}
-## MaAslin2
-fit.Maaslin2 <- function(features, metadata, libSize) {
-    #############################
-    # Standard MaAslin2 pipeline #
-    #############################
-
-    # Ensure features and metadata are data frames
-    features <- as.data.frame(features)
-    metadata <- as.data.frame(metadata)
-
-    # Run MaAslin2
-    fit_data <- Maaslin2(input_data = features,
-                         min_abundance = - Inf,
-                         input_metadata = metadata,
-                         output = "Maaslin2_output",
-                         normalization = "TSS",
-                         transform = "LOG",
-                         fixed_effects = c("diagnosis","age","antibiotics"))
-
-    res_df <- fit_data$results
-    # Extract coefficients and p-values
-    coef <- res_df$coef
-    pval_CR <- res_df$pval
-    paras <- data.frame(coef_CR = coef, pval_CR = pval_CR)
-    paras$feature <- res_df$feature
-
-
-    #################
-    # Return output #
-    #################
-
-    paras <- dplyr::select(paras, c('feature'), everything())
-    paras$metadata <- res_df$name
-    rownames(paras) <- NULL
-    return(paras)
+# Load MetaPhlAn data
+if (version == 3) {
+    taxa_table <- read.csv('~/Desktop/DAssemble/Codes/Dataset/metaphlan3_taxonomic_profiles.tsv', check.names = FALSE, sep = '\t')
+    taxa_table <- taxa_table[grepl('\\|s__', taxa_table$`#SampleID`), ]  # Fixed escaping issue
+    rownames(taxa_table) <- taxa_table$`#SampleID`
+    taxa_table$`#SampleID` <- NULL
+    taxa_table <- taxa_table * 100 # Convert to percentage
+} else if (version == 4) {
+    taxa_table <- read.csv('~/Desktop/DAssemble/Codes/Dataset/metaphlan4_taxonomic_profiles.tsv', skip = 1, check.names = FALSE, sep = '\t')
+    colnames(taxa_table) <- gsub('_taxonomic$', '', colnames(taxa_table))
+    taxa_table <- taxa_table[grepl('\\|t__', taxa_table$clade_name), ]  # Fixed escaping issue
+    rownames(taxa_table) <- taxa_table$clade_name
+    taxa_table$clade_name <- NULL
+} else {
+    stop("Invalid MetaPhlAn version")
 }
 
-libSize <- rowSums(input_features)
+prepare_metadata <- function(dataset_type) {
+    metadata <- read.csv('~/Desktop/DAssemble/Codes/Dataset/hmp2_metadata_2018-08-20.csv', check.names = F)
+    
+    # Reorganize metadata table
+    for (participant_id in unique(metadata$`Participant ID`)) {
+        bmis <- metadata$BMI[metadata$`Participant ID` == participant_id]
+        bmis <- bmis[!is.na(bmis)]
+        metadata$BMI[metadata$`Participant ID` == participant_id] <- ifelse(length(bmis) > 0, mean(bmis), NA)
+        
+        smoke_status <- metadata$`smoking status`[metadata$`Participant ID` == participant_id]
+        smoke_status <- smoke_status[!is.na(smoke_status)]
+        metadata$`smoking status`[metadata$`Participant ID` == participant_id] <- ifelse(length(smoke_status) > 0, smoke_status[1], NA)
+    }
+    
+    if (dataset_type == 'taxa') {
+        metadata <- metadata[metadata$data_type == 'metagenomics',]
+    } else {
+        metadata <- metadata[metadata$data_type == 'metabolomics',]
+    }
+    rownames(metadata) <- metadata$`External ID`
+    metadata <- metadata[,colSums(metadata == '', na.rm = T) != nrow(metadata)]
+    keep_cols <- c('External ID', 'Participant ID', 'week_num', 'site_name', 'Age at diagnosis',
+                   'Education Level', 'Occupation', 'consent_age', 'diagnosis',
+                   colnames(metadata)[c(52:83, 85:111)], 'race', 'sex', 'BMI', 'reads_filtered')
+    metadata <- metadata[,keep_cols]
+    metadata <- metadata[,colSums(!is.na(metadata)) != 0]
+    return(metadata)
+}
+metadata <- prepare_metadata('taxa')
 
-paras_CR <- fit.Maaslin2(input_features, input_metadata, libSize)
-# Filter results to only include entries related to 'diagnosis'
-paras_CR_diagnosis <- paras_CR[paras_CR$metadata == "diagnosis", ]
-print(paras_CR_diagnosis)
-```
+# Calculate dysbiosis score
+veg_dist_out <- vegdist(t(as.matrix(taxa_table)), method="bray")
+veg_dist_out <- as.matrix(veg_dist_out)
+dysbiosis_scores <- vector(length = nrow(veg_dist_out))
+for (i in seq_along(rownames(veg_dist_out))) {
+    sample_name <- rownames(veg_dist_out)[i]
+    healthy_subset <- colnames(taxa_table)[colnames(taxa_table) %in% 
+                                               rownames(metadata[metadata$week_num > 20 & 
+                                                                     metadata$diagnosis == 'nonIBD' &
+                                                                     metadata$`Participant ID` != metadata[sample_name,]$`Participant ID`,])]
+    
+    dysbiosis_scores[i] <- median(veg_dist_out[sample_name, healthy_subset])
+}
+names(dysbiosis_scores) <- rownames(veg_dist_out)
 
-### Run LOCOM
-```{r}
-fit.LOCOM <- function(features, metadata, libSize, ID){
-  
-  #############
-  # Run LOCOM #
-  #############
-  otu.table <- as.matrix(input_features)
-  Y <- as.numeric(input_metadata[, c("diagnosis")])
-  C <- data.frame(age = as.numeric(input_metadata[, "age"]), 
-                      antibiotics = as.numeric(input_metadata[, "antibiotics"]))
-  
-  filter.threshold <- 0
-  res <- locom(otu.table = otu.table, Y = Y, C = C, fdr.nominal = 0.1, seed = 1, n.perm.max = 10000,  filter.thresh = filter.threshold)
-  
-  paras <- data.frame(pval_LO = res$p.otu[1,], coef_LO = res$effect.size[1,])
+# Add the dysbiosis state to the metadata
+dysbiosis_df <- data.frame(sample=names(dysbiosis_scores), dysbiosis_score=dysbiosis_scores)
+metadata <- right_join(dysbiosis_df, metadata, by=c('sample'='External ID'))
+metadata$dysbiosis_state <- metadata$dysbiosis_score > quantile(metadata$dysbiosis_score[metadata$diagnosis == 'nonIBD'], 0.9, na.rm=T)
+metadata$dysbiosis_state <- ifelse(metadata$dysbiosis_state, paste0('dysbiosis_', metadata$diagnosis), 'none')
+metadata$dysbiosis_state <- factor(metadata$dysbiosis_state, levels = c('none', 'dysbiosis_nonIBD', 'dysbiosis_UC', 'dysbiosis_CD'))
 
-  paras$feature <- rownames(paras)
-  paras$metadata <- "diagnosis"
-  
-  #################
-  # Return output #
-  #################
-  
-  paras <- paras[order(paras$pval_LO, decreasing = FALSE),]
-  paras <- dplyr::select(paras, c('feature'), everything())
-  
-  rownames(paras) <- NULL
-  return(paras) 
+dysbiosis_df <- metadata[, c("sample", "dysbiosis_state")]
+dysbiosis_df <- dysbiosis_df[order(dysbiosis_df$sample),]
+dysbiosis_df <- dysbiosis_df[!duplicated(dysbiosis_df$sample),]
+
+metadata <- prepare_metadata(dataset)
+metadata <- right_join(dysbiosis_df, metadata, by=c('sample'='External ID'))
+
+metadata$participant_id <- metadata$`Participant ID`
+metadata$diagnosis <- factor(ifelse(metadata$diagnosis %in% c("CD", "UC"), "IBD", "nonIBD"), 
+                             levels = c("nonIBD", "IBD"))
+
+
+metadata <- metadata[!is.na(metadata$dysbiosis_state),]
+rownames(metadata) <- metadata$sample
+
+if (dataset == 'taxa') {
+    if (version == 3) {
+        taxa_table <- read.csv('~/Desktop/DAssemble/Codes/Dataset/metaphlan3_taxonomic_profiles.tsv',check.names = F, sep = '\t')
+        taxa_table <- taxa_table[grepl('\\|s__', taxa_table$`#SampleID`) & 
+                         !grepl('\\|t__', taxa_table$`#SampleID`) & 
+                         taxa_table$`#SampleID` != 'UNCLASSIFIED',]
+        rownames(taxa_table) <- taxa_table$`#SampleID`
+        taxa_table$`#SampleID` <- NULL
+        taxa_table['UNCLASSIFIED',] <- pmax(1 - colSums(taxa_table), 0)
+        taxa_table <- taxa_table * 100 # Convert to percents to be consistent with v4
+    } else if (version == 4) {
+        taxa_table <- read.csv('~/Desktop/DAssemble/Codes/Dataset/metaphlan4_taxonomic_profiles.tsv', skip = 1, check.names = F, sep = '\t')
+        
+        # Reorganize taxa table
+        colnames(taxa_table) <- gsub('_taxonomic$', '', colnames(taxa_table))
+        # taxa_table <- taxa_table[taxa_table$clade_name == 'UNCLASSIFIED' | 
+        #                              grepl('\\|t__', taxa_table$clade_name),]
+        taxa_table <- taxa_table[grepl('\\|t__', taxa_table$clade_name) & 
+                         taxa_table$clade_name != 'UNCLASSIFIED',]
+        rownames(taxa_table) <- taxa_table$clade_name
+        taxa_table$clade_name <- NULL
+    } else {
+        stop("--version not valid")
+    }
+    
+} else {
+    # Read in data
+    mbx_table <- read.csv("~/Desktop/DAssemble/Codes/Dataset/intensities_hmp2.csv")
+    annotations <- read.csv("~/Desktop/DAssemble/Codes/Dataset/annotations_hmp2.csv")
+    
+    if (all(abs(annotations$prev - rowMeans(!is.na(mbx_table))) < 0.001)) {
+        mbx_table <- mbx_table[annotations$prim_feature == 'primary' & annotations$Metabolite != '',]
+        rownames(mbx_table) <- paste0(annotations$Metabolite[annotations$prim_feature == 'primary' & annotations$Metabolite != ''], '_',
+                                      annotations$HMDB.ID[annotations$prim_feature == 'primary' & annotations$Metabolite != ''], '_',
+                                      annotations$Method[annotations$prim_feature == 'primary' & annotations$Metabolite != ''])
+        mbx_table[is.na(mbx_table)] <- 0
+    }
+    taxa_table <- mbx_table
 }
 
-paras_LO <- fit.LOCOM(input_features, input_metadata, libSize, ID)
-paras_LO
+metadata <- metadata[metadata$sample %in% colnames(taxa_table),]
+metadata <- metadata[as.numeric(mapvalues(metadata$sample, colnames(taxa_table), 1:ncol(taxa_table))),]
 
 ```
 
-### Combine results
+On the basis of same preprocessing as MaAsLin3, we further shorten feature names and subset the dataset to baseline to make model fitting easier.
 ```{r}
-paras_CR <- paras_CR_diagnosis %>%
-  dplyr::mutate(ID = feature) %>%  
+rownames(taxa_table) <- gsub("^.*\\|s__", "s__", rownames(taxa_table))
+
+# Step 1: Extract baseline subjects from metadata
+baseline_metadata <- metadata %>%
+  distinct(participant_id, .keep_all = TRUE) %>%  
+  filter(week_num < 3)  # Only subjects with week_num < 3
+
+
+baseline_samples <- baseline_metadata$sample  
+baseline_taxa_table <- taxa_table[, colnames(taxa_table) %in% baseline_samples, drop = FALSE]
+
+cat("Dimensions of baseline_metadata:", dim(baseline_metadata), "\n")
+cat("Subsetted Taxa Table Dimensions (samples × features):", dim(baseline_taxa_table), "\n")
+
+taxa_table <- baseline_taxa_table
+metadata <- baseline_metadata
+```
+
+## Run models
+
+Here, we fit the two part model using MaAsLin2 and Logistic Regression. First, we fit the models separately and then combine the two-part model using the p-value combination method.
+
+## Run MaAsLin2
+
+```{r, echo=TRUE, results='hide'}
+if (dataset == 'taxa') {
+    if (version == 3) {
+        tmp_fit_out <- paste0(gsub("/$", "", analysisDirectory), "/fit_out_MaAsLin2_3")
+    } else {
+        tmp_fit_out <- paste0(gsub("/$", "", analysisDirectory), "/fit_out_MaAsLin2_4")
+    }
+} else {
+    tmp_fit_out <- paste0(gsub("/$", "", analysisDirectory), "/fit_out_MaAsLin2_mbx")
+}
+
+if (dataset == 'taxa') {
+  fit_out <- Maaslin2::Maaslin2(taxa_table, metadata, 
+                                min_abundance = 0, 
+                                min_prevalence = 0, 
+                                output = tmp_fit_out, 
+                                min_variance = 0, 
+                                normalization = 'TSS', 
+                                transform = 'log', 
+                                analysis_method = 'LM', 
+                                fixed_effects = c('diagnosis', 'Antibiotics', 'consent_age'), 
+                                save_scatter = FALSE, 
+                                save_models = F, 
+                                plot_heatmap = F, 
+                                plot_scatter = F,
+                                max_significance = 0.1, 
+                                reference = 'diagnosis,nonIBD')$results
+} else {
+  fit_out <- Maaslin2::Maaslin2(taxa_table, 
+                                metadata, 
+                                min_abundance = 0, 
+                                min_prevalence = 0, 
+                                output = tmp_fit_out, 
+                                min_variance = 0, 
+                                normalization = 'NONE', 
+                                transform = 'log', 
+                                analysis_method = 'LM', 
+                                fixed_effects = c('diagnosis', 'Antibiotics', 'consent_age'), 
+                                save_scatter = FALSE, 
+                                ave_models = F, 
+                                plot_heatmap = F, 
+                                plot_scatter = F,
+                                max_significance = 0.1, 
+                                reference = 'diagnosis,nonIBD')$results
+}
+
+unlink(tmp_fit_out, recursive = T)
+
+
+fit_out <- data.frame(feature = fit_out$feature,
+           metadata = fit_out$metadata,
+           value = fit_out$value,
+           coef = fit_out$coef,
+           pval = fit_out$pval,
+           qval = fit_out$qval,
+           association = "abundance")
+
+fit_out <- fit_out[fit_out$metadata == "diagnosis", ]
+fit_out$qval <- p.adjust(fit_out$pval, method = "BH")
+
+
+paras_CR <- fit_out
+paras_CR <- paras_CR %>%
+  dplyr::rename(
+    coef_CR = coef, 
+    pval_CR = pval,   
+    qval_CR = qval
+  ) %>%
+  dplyr::mutate(
+    metadata = "diagnosis" 
+  ) %>%
+  dplyr::select(
+    feature,                
+    coef_CR,              
+    pval_CR,              
+    qval_CR,
+    metadata               
+  )
+#write.table(paras_CR, paste0(gsub("/$", "", analysisDirectory), "/results/", ifelse(dataset == 'taxa', '', 'mbx_'), "v", version, "_ibd_associations_MaAsLin2.tsv"), row.names = F, sep='\t')
+```
+
+
+## Run Logistic Regression
+```{r, echo=TRUE, results='hide', warning=FALSE}
+taxa_table <- as.data.frame(t(baseline_taxa_table))
+metadata <- as.data.frame(baseline_metadata)
+input_features <- taxa_table
+input_metadata <- metadata
+results_list <- list()
+
+for (x in 1:ncol(input_features)) {
+    
+    feature_name <- colnames(input_features)[x] 
+    featuresVector <- input_features[, x]  
+    featuresVector <- as.factor(ifelse(featuresVector != 0, 1, 0))
+    dat_sub <- data.frame(expr = featuresVector, metadata)
+    formula <- as.formula("expr ~ diagnosis + consent_age + Antibiotics")
+    
+    fit <- tryCatch({
+      glm(formula = formula, data = dat_sub, family = "binomial")
+    }, error = function(err) {
+      try(lme4::glmer(formula = formula, data = dat_sub, family = "binomial",
+                      control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))))
+    })
+    
+    if (!inherits(fit, "try-error")) {
+        para <- as.data.frame(summary(fit)$coefficients[, c(1, 2, 4), drop = FALSE])
+    } else {
+        para <- as.data.frame(matrix(NA, nrow = 1, ncol = 3))
+        colnames(para) <- c("Estimate", "Std. Error", "Pr(>|z|)")
+        print(paste("Fitting problem for feature", feature_name, "returning NA"))
+    }
+
+    para$feature <- feature_name
+    results_list[[feature_name]] <- para
+}
+
+results_df <- do.call(rbind, results_list)
+results_df$variable <- rownames(results_df)  
+diagnosis_subset <- results_df[grep("diagnosis", results_df$variable, ignore.case = TRUE), ]
+diagnosis_subset$qval_LR <- p.adjust(diagnosis_subset$`Pr(>|z|)`, method = "BH")
+
+paras_LR <- diagnosis_subset
+
+paras_LR <- paras_LR %>%
+  dplyr::mutate(
+    metadata = "diagnosis"  
+  ) %>%
+  dplyr::select(
+    feature,                
+    coef_LR = Estimate,    
+    pval_LR = `Pr(>|z|)`, 
+    qval_LR,
+    metadata              
+  )
+
+rownames(paras_LR) <- NULL
+
+print(paras_LR)
+#write.table(paras_LR, paste0(gsub("/$", "", analysisDirectory), "/results/", ifelse(dataset == 'taxa', '', 'mbx_'), "v", version, "_ibd_associations_LogisticRegression.tsv"), row.names = F, sep='\t')
+```
+
+## Combine results
+After running MaAsLin2 and Logistic Regression, we use CC, MC and SC to combine p-values and calculate q-values based on combined p-values. We can use the DAssemble() from library(DAssemble) for this step.
+```{r, warning=FALSE}
+paras_CR <- paras_CR %>%
+  dplyr::mutate(ID = gsub("\\.t__", "|t__", feature))  %>%  
   dplyr::rename(pvalue = pval_CR) 
 
-paras_LO = paras_LO %>%
-  dplyr::mutate(ID = feature) %>%  
-  dplyr::rename(pvalue = pval_LO)
+paras_LR <- paras_LR %>%
+  dplyr::mutate(ID = feature) %>% 
+  dplyr::rename(pvalue = pval_LR) 
 
-# Combine the results
-dflist = list(paras_LO, paras_CR)
+## MaAsLin2
+dflist1 = list(paras_LR, paras_CR)
+## MC
+parasVanilla_MaAsLin2 = DAssemble(dflist1, combine.method = "minP", correction = "BH")
+parasVanilla_MaAsLin2[1:10, ]
+## CC
+parasCCT_MaAsLin2 = DAssemble(dflist1, combine.method = "CCT", correction = "BH")
+parasCCT_MaAsLin2[1:10, ]
+## SC
+parasStouffer_MaAsLin2 = DAssemble(dflist1, combine.method = "stouffer", correction = "BH")
+parasStouffer_MaAsLin2[1:10,]
+
 ```
 
-After running MaAsLin2 and LOCOM, we use Vanilla, Cauchy Combination Test (CCT) and stouffer to combine p-values and calculate q-values based on combined p-values. We can use the DAssemble() from library(DAssemble) for this step.
 
-#### Vanilla
-```{r}
-# P-value: Vanilla
-parasVanilla = DAssemble(dflist, combine.method = "minP", correction = "BH")
+## Compare results
 
-# Sort the combined results by pval.combined
-parasVanilla <- parasVanilla %>%
-  dplyr::arrange(pval.combined)
+To compare Logistic Regression and models using different combination methods, we create plots to highlight key microbial taxa associated with IBD through combined abundance and prevalence modeling. Using MaAsLin2 + LR (SC) as a representative
+method, we identified two major classes of IBD-associated taxa: 1) exhibiting both broad compositional shifts and presence-absence patterns (Fig. 6A); and 2) prevalence associations not detected by abundance modeling alone (Fig. 6B). 
 
-parasVanilla[1:10, ]
+## Example: MaAsLin2 + LR (SC)
+
+```{r plot_pyramid, fig.width=12, fig.height=8, out.width="100%"}
+threshold <- 0.25
+
+# Extract significant species from non-ensemble model (MaAsLin2 - Original)
+sig_non_ensemble <- paras_CR %>%
+  filter(qval_CR < threshold) %>%
+  dplyr::select(ID, qval_CR, pvalue, coef_CR) %>%
+  mutate(Method = "Original")
+
+# Extract significant species from ensemble models (CC, SC, MC)
+sig_ensemble <- bind_rows(
+  parasCCT_MaAsLin2 %>% mutate(Method = "CC"),
+  parasStouffer_MaAsLin2 %>% mutate(Method = "SC"),
+  parasVanilla_MaAsLin2 %>% mutate(Method = "MC")
+) %>%
+  filter(qval_BH < threshold)
+
+sig_SC <- sig_ensemble %>%
+  filter(Method == "SC") %>%
+  arrange(qval_BH) 
+
+common_species <- inner_join(sig_non_ensemble, sig_SC, by = "ID") %>%
+  arrange(qval_BH) %>%
+  slice_head(n = 10)  
+
+# Select species significant in SC but NOT in non-ensemble
+only_ensemble <- sig_SC %>%
+  anti_join(sig_non_ensemble %>% filter(qval_CR < threshold), by = "ID") %>%
+  arrange(desc(pvalue2))%>%  
+  slice_head(n = 10)  
+
+top_10 <- common_species %>%
+  mutate(
+    feature = ID,  
+    pval_CR_log10 = -log10(pvalue2), 
+    pval_LR_log10 = -log10(pvalue1),  
+    coef_CR_sign = ifelse(coef_CR.x > 0, "+", "-"),  
+    coef_LR_sign = ifelse(coef_LR > 0, "+", "-")  
+  )
+
+top_10 <- top_10 %>%
+  mutate(feature = str_replace_all(ID, "s__|\\|t__.*", "")) %>%  
+  mutate(feature = str_replace_all(feature, "_", " "))  
+
+only_ensemble_10 <- only_ensemble %>%
+  mutate(
+    feature = ID,  
+    pval_CR_log10 = -log10(pvalue2),  
+    pval_LR_log10 = -log10(pvalue1),  
+    coef_CR_sign = ifelse(coef_CR > 0, "+", "-"),  
+    coef_LR_sign = ifelse(coef_LR > 0, "+", "-")  
+  )
+
+only_ensemble_10 <- only_ensemble_10 %>%
+  mutate(feature = str_replace_all(ID, "s__|\\|t__.*", "")) %>%  
+  mutate(feature = str_replace_all(feature, "_", " "))  
+
+pval_range <- range(c(top_10$pval_CR_log10, only_ensemble_10$pval_CR_log10))
+breaks_pretty_pval <- pretty(c(-max(pval_range), max(pval_range)), n = 5)
+
+# Left Plot: Compare -log10(p-value) between MaAsLin2 and Logistic Regression (common species)
+pyramid_plot_pval_1 <- ggplot(top_10) +
+  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -pval_LR_log10, fill = "LR"), position = "identity") +
+  geom_text(aes(x = feature, y = pval_CR_log10 + 0.3, label = coef_CR_sign), size = 7, hjust = 0.5) +  
+  geom_text(aes(x = feature, y = -pval_LR_log10 - 0.3, label = coef_LR_sign), size = 7, hjust = 0.5) + 
+  labs(y = "-log10(p-value)", x = "") +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    axis.text.y = element_text(size = 11, hjust = 1, face = "italic", family = "serif"),
+    axis.text.x = element_text(size = 10)
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LR" = "orange"), name = NULL) +
+  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
+
+# Right Plot: Compare -log10(p-value) between MaAsLin2 and Logistic Regression for species found in CC but not in MaAsLin2
+pyramid_plot_pval_2 <- ggplot(only_ensemble_10) +
+  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
+  geom_col(aes(x = feature, y = -pval_LR_log10, fill = "LR"), position = "identity") +
+  geom_text(aes(x = feature, y = pval_CR_log10 + 0.3, label = coef_CR_sign), size = 7, hjust = 0.5) +  
+  geom_text(aes(x = feature, y = -pval_LR_log10 - 0.3, label = coef_LR_sign), size = 7, hjust = 0.5) +  
+  labs(y = "-log10(p-value)", x = "") +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(size = 11, hjust = 1, face = "italic", family = "serif"),
+    axis.text.x = element_text(size = 10),
+    legend.text = element_text(size = 10)
+  ) +
+  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LR" = "orange"), name = NULL) +
+  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
+
+sig_threshold <- -log10(0.05)
+
+pyramid_plot_pval_1 <- pyramid_plot_pval_1 +
+  geom_hline(yintercept = sig_threshold, linetype = "dashed", color = "red", size = 0.5) +  
+  geom_hline(yintercept = -sig_threshold, linetype = "dashed", color = "red", size = 0.5)  
+
+pyramid_plot_pval_2 <- pyramid_plot_pval_2 +
+  geom_hline(yintercept = sig_threshold, linetype = "dashed", color = "red", size = 0.5) + 
+  geom_hline(yintercept = -sig_threshold, linetype = "dashed", color = "red", size = 0.5)  
+
+
+# Combine both plots
+combined_plot <- plot_grid(
+  pyramid_plot_pval_1 + 
+    ggtitle("A. Abundance associations enhanced by prevalence modeling") + 
+    theme(plot.title = element_text(size = 14, hjust = 0.9, margin = margin(b = 10)),
+          plot.margin = margin(t = 10, r = 10, b = 15, l = 1)),  
+  
+  pyramid_plot_pval_2 + 
+    ggtitle("B. Prevalence associations not detected by abundance modeling") + 
+    theme(plot.title = element_text(size = 14, hjust = 0.7, margin = margin(b = 10)),
+          plot.margin = margin(t = 10, r = 10, b = 1, l = 15)),  
+  
+  ncol = 2,
+  align = "h",
+  rel_widths = c(2, 2)
+)
+
+final_plot <- plot_grid(
+  ggdraw() + draw_label(
+    "",
+    x = 0.5, hjust = 0.5, size = 50
+  ),
+  combined_plot,
+  ncol = 1,
+  rel_heights = c(0.01, 1.2)
+)
+
+print(final_plot)
 ```
-#### CCT
+
+In Panel A, taxa such as *Collinsella SGB14861* and *Clostridium sp AM49 4BH* show stronger associations when both abundance and prevalence are considered, suggesting their potential role in gut inflammation and metabolic alterations. Panel B reveals taxa like *Faecalibacterium intestinalis* and *Ruminococcus bicirculans*, whose prevalence associations were missed by abundance modeling alone, indicating their underrepresentation in IBD patients despite their potential protective roles. The detection of butyrate-producing bacteria, such as *Faecalibacterium intestinalis*, reinforces the known link between gut microbiota and intestinal health. 
+
+
+## Other ensemble strategies
+
+DAssemble can be applied to arbitrary pvalues. For example, p-values from an ANCOM-BC2 model can be combined with the LR p-values using the Cauchy Combination (CC) by using the following code:
+
+
+## Run LinDA
+
+```{r, echo=TRUE, results='hide'}
+taxa_table <- baseline_taxa_table
+metadata <- baseline_metadata
+
+input_metadata <- metadata
+input_features <- taxa_table
+
+linda_result <- linda(
+  feature.dat = input_features,  
+  meta.dat = input_metadata,      
+  formula = "~ diagnosis + Antibiotics + consent_age",
+  is.winsor = FALSE,               
+  zero.handling = "pseudo-count",  
+  p.adj.method = "BH",            
+  alpha = 0.05,                   
+)
+
+linda_result <- linda_result$output$diagnosisIBD
+linda_result$qval <- p.adjust(linda_result$pval, method = "BH")
+
+paras_LD <- linda_result
+
+paras_LD <- paras_LD %>%
+  tibble::rownames_to_column(var = "feature") %>% 
+  dplyr::rename(
+    coef_LD = log2FoldChange,  
+    pval_LD = pvalue,           
+    qval_LD = qval
+  ) %>%
+  dplyr::mutate(
+    metadata = "diagnosis"      
+  ) %>%
+  dplyr::select(
+    feature,   
+    coef_LD,
+    pval_LD,
+    qval_LD,
+    metadata
+  )
+print(paras_LD)
+# write.table(paras_LD, paste0(gsub("/$", "", analysisDirectory), "/results/", ifelse(dataset == 'taxa', '', 'mbx_'), "v", version, "_ibd_associations_LINDA.tsv"), row.names = F, sep='\t')
+```
+
+
 ```{r, warning=FALSE}
-# P-value: CCT
-parasCCT = DAssemble(dflist, combine.method = "CCT", correction = "BH")
-parasCCT <- parasCCT %>%
-  dplyr::arrange(pval.combined)
-parasCCT[1:10, ]
-```
-#### stouffer
-```{r, warning=FALSE}
-# P-value: stouffer
-parasStouffer = DAssemble(dflist, combine.method = "stouffer", correction = "BH")
-parasStouffer <- parasStouffer %>%
-  dplyr::arrange(pval.combined)
-parasStouffer[1:10,]
-```
+paras_LD <- paras_LD %>%
+  dplyr::mutate(ID = gsub("\\.t__", "|t__", feature))  %>%  
+  dplyr::rename(pvalue = pval_LD) 
 
+dflist2 = list(paras_LR, paras_LD)
+parasCCT_LinDA = DAssemble(dflist2, combine.method = "CCT", correction = "BH")
+parasCCT_LinDA[1:10, ]
+## Other ensemble methods:
+## MinP
+parasVanilla_LinDA = DAssemble(dflist2, combine.method = "minP", correction = "BH")
+parasVanilla_LinDA[1:10, ]
+## Stouffer
+parasStouffer_LinDA = DAssemble(dflist2, combine.method = "stouffer", correction = "BH")
+parasStouffer_LinDA[1:10,]
 
-## Results Comparison 
-To compare LOCOM and MaAsLin2 using different combination methods, we create plots to display the top 10 genes identified based on their q-values. The left panel compares the -log10(p-values) obtained from each method, with higher values indicating greater
-statistical significance and providing a clearer interpretation of significance levels across genes. The right panel presents the estimated coefficients (effect sizes) from each method for the samegenes, with plus (+) and minus (-) symbols indicating positive and negative associations, respectively. 
-
-### LOCOM vs MaAsLin2(CCT)
-```{r, fig.width=7, fig.height=5.5, warning=FALSE}
-# Rank features based on q-value and select top 10 features
-top_10 <- parasCCT %>%
-  arrange(qval_BH) %>%
-  slice_head(n = 10) %>%
-  mutate(
-    feature = coalesce(feature.x, feature.y), 
-    pval_CR_log10 = -log10(pvalue2),          # From MaAsLin2 results
-    pval_LO_log10 = -log10(pvalue1)           # From LOCOM results
-  )
-
-pval_range <- range(c(top_10$pval_CR_log10, abs(top_10$pval_LO_log10)))
-breaks_pretty_pval <- pretty(c(-max(pval_range), max(pval_range)), n = 5)
-
-pyramid_plot_pval <- ggplot(top_10) +
-  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
-  geom_col(aes(x = feature, y = -pval_LO_log10, fill = "LOCOM"), position = "identity") +
-  labs(y = "-log10(p-value)", x = "") +  
-  coord_flip() +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.title.x = element_text(size = 12),
-    axis.title.y = element_text(size = 12),
-    axis.text.y = element_text(size = 10, face = "italic"),
-    axis.text.x = element_text(size = 10)
-  ) +
-  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
-  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
-
-coef_range <- range(c(top_10$coef_CR, abs(top_10$coef_LO)))
-breaks_pretty_coef <- pretty(c(-max(coef_range), max(coef_range)), n = 5)
-
-pyramid_plot_coef <- ggplot(top_10) +
-  geom_col(aes(x = feature, y = abs(coef_CR), fill = "MaAsLin2"), position = "identity") +
-  geom_col(aes(x = feature, y = -abs(coef_LO), fill = "LOCOM"), position = "identity") +
-  geom_text(aes(x = feature, y = abs(coef_CR), label = ifelse(coef_CR > 0, "+", "-"), hjust = -0.3), size = 4) +
-geom_text(aes(x = feature, y = -abs(coef_LO), label = ifelse(coef_LO > 0, "+", "-"), hjust = 1.3), size = 4) +
-  labs(y = "Coefficient", fill = "") +
-  coord_flip() +
-  theme_minimal() +
-  theme(
-    legend.position = "right",
-    axis.title.y = element_blank(), 
-    axis.text.y = element_blank(), 
-    axis.ticks.y = element_blank(), 
-    plot.title = element_blank()
-  ) +
-  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
-  scale_y_continuous(breaks = breaks_pretty_coef, labels = abs(breaks_pretty_coef), limits = range(breaks_pretty_coef))
-
-combined_plot <- plot_grid(
-  pyramid_plot_pval,
-  pyramid_plot_coef,
-  ncol = 2,
-  align = "h"
-)
-
-final_plot <- plot_grid(
-  ggdraw() + draw_label(
-    "", 
-    x = 0.5, hjust = 0.5, size = 13
-  ),
-  combined_plot,
-  ncol = 1,
-  rel_heights = c(0.1, 1)
-)
-
-print(final_plot)
-
-```
-
-### LOCOM vs MaAsLin2(Stouffer)
-```{r, fig.width=7, fig.height=5.5, warning=FALSE}
-top_10 <- parasStouffer %>%
-  arrange(qval_BH) %>%
-  slice_head(n = 10) %>%
-  mutate(
-    feature = coalesce(feature.x, feature.y), 
-    pval_CR_log10 = -log10(pvalue2),          # From MaAsLin2 results
-    pval_LO_log10 = -log10(pvalue1)           # From LOCOM results
-  )
-
-pval_range <- range(c(top_10$pval_CR_log10, abs(top_10$pval_LO_log10)))
-breaks_pretty_pval <- pretty(c(-max(pval_range), max(pval_range)), n = 5)
-
-pyramid_plot_pval <- ggplot(top_10) +
-  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
-  geom_col(aes(x = feature, y = -pval_LO_log10, fill = "LOCOM"), position = "identity") +
-  labs(y = "-log10(p-value)", x = "") +  
-  coord_flip() +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.title.x = element_text(size = 12),
-    axis.title.y = element_text(size = 12),
-    axis.text.y = element_text(size = 10, face = "italic"),
-    axis.text.x = element_text(size = 10)
-  ) +
-  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
-  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
-
-coef_range <- range(c(top_10$coef_CR, abs(top_10$coef_LO)))
-breaks_pretty_coef <- pretty(c(-max(coef_range), max(coef_range)), n = 5)
-
-pyramid_plot_coef <- ggplot(top_10) +
-  geom_col(aes(x = feature, y = abs(coef_CR), fill = "MaAsLin2"), position = "identity") +
-  geom_col(aes(x = feature, y = -abs(coef_LO), fill = "LOCOM"), position = "identity") +
-  geom_text(aes(x = feature, y = abs(coef_CR), label = ifelse(coef_CR > 0, "+", "-"), hjust = -0.3), size = 4) +
-geom_text(aes(x = feature, y = -abs(coef_LO), label = ifelse(coef_LO > 0, "+", "-"), hjust = 1.3), size = 4) +
-  labs(y = "Coefficient", fill = "") +
-  coord_flip() +
-  theme_minimal() +
-  theme(
-    legend.position = "right",
-    axis.title.y = element_blank(), 
-    axis.text.y = element_blank(), 
-    axis.ticks.y = element_blank(), 
-    plot.title = element_blank()
-  ) +
-  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
-  scale_y_continuous(breaks = breaks_pretty_coef, labels = abs(breaks_pretty_coef), limits = range(breaks_pretty_coef))
-
-combined_plot <- plot_grid(
-  pyramid_plot_pval,
-  pyramid_plot_coef,
-  ncol = 2,
-  align = "h"
-)
-
-final_plot <- plot_grid(
-  ggdraw() + draw_label(
-    "", 
-    x = 0.5, hjust = 0.5, size = 13
-  ),
-  combined_plot,
-  ncol = 1,
-  rel_heights = c(0.1, 1)
-)
-
-print(final_plot)
-```
-
-
-### LOCOM vs MaAsLin2(Vanilla_Combine)
-```{r, fig.width=7, fig.height=5.5, warning=FALSE}
-top_10 <- parasVanilla %>%
-  arrange(qval_BH) %>%
-  slice_head(n = 10) %>%
-  mutate(
-    feature = coalesce(feature.x, feature.y),  
-    pval_CR_log10 = -log10(pvalue2),          # From MaAsLin2 results
-    pval_LO_log10 = -log10(pvalue1)           # From LOCOM results
-  )
-
-pval_range <- range(c(top_10$pval_CR_log10, abs(top_10$pval_LO_log10)))
-breaks_pretty_pval <- pretty(c(-max(pval_range), max(pval_range)), n = 5)
-
-pyramid_plot_pval <- ggplot(top_10) +
-  geom_col(aes(x = feature, y = pval_CR_log10, fill = "MaAsLin2"), position = "identity") +
-  geom_col(aes(x = feature, y = -pval_LO_log10, fill = "LOCOM"), position = "identity") +
-  labs(y = "-log10(p-value)", x = "") +  
-  coord_flip() +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.title.x = element_text(size = 12),
-    axis.title.y = element_text(size = 12),
-    axis.text.y = element_text(size = 10, face = "italic"),
-    axis.text.x = element_text(size = 10)
-  ) +
-  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
-  scale_y_continuous(breaks = breaks_pretty_pval, labels = abs(breaks_pretty_pval), limits = range(breaks_pretty_pval))
-
-coef_range <- range(c(top_10$coef_CR, abs(top_10$coef_LO)))
-breaks_pretty_coef <- pretty(c(-max(coef_range), max(coef_range)), n = 5)
-
-pyramid_plot_coef <- ggplot(top_10) +
-  geom_col(aes(x = feature, y = abs(coef_CR), fill = "MaAsLin2"), position = "identity") +
-  geom_col(aes(x = feature, y = -abs(coef_LO), fill = "LOCOM"), position = "identity") +
-  geom_text(aes(x = feature, y = abs(coef_CR), label = ifelse(coef_CR > 0, "+", "-"), hjust = -0.3), size = 4) +
-geom_text(aes(x = feature, y = -abs(coef_LO), label = ifelse(coef_LO > 0, "+", "-"), hjust = 1.3), size = 4) +
-  labs(y = "Coefficient", fill = "") +
-  coord_flip() +
-  theme_minimal() +
-  theme(
-    legend.position = "right",
-    axis.title.y = element_blank(), 
-    axis.text.y = element_blank(), 
-    axis.ticks.y = element_blank(), 
-    plot.title = element_blank()
-  ) +
-  scale_fill_manual(values = c("MaAsLin2" = "darkblue", "LOCOM" = "orange")) +
-  scale_y_continuous(breaks = breaks_pretty_coef, labels = abs(breaks_pretty_coef), limits = range(breaks_pretty_coef))
-
-combined_plot <- plot_grid(
-  pyramid_plot_pval,
-  pyramid_plot_coef,
-  ncol = 2,
-  align = "h"
-)
-
-final_plot <- plot_grid(
-  ggdraw() + draw_label(
-    "", 
-    x = 0.5, hjust = 0.5, size = 13
-  ),
-  combined_plot,
-  ncol = 1,
-  rel_heights = c(0.1, 1)
-)
-
-print(final_plot)
 ```
 
 ## Session information
 ```{r}
 sessionInfo()
 ```
+
+
 
