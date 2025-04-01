@@ -1,6 +1,6 @@
 ---
 title: "Introduction to DAssemble"
-author: "Himel Mallick, Ziyu Liu, Jialin Gao"
+author: "Jialin Gao, Ziyu Liu, Himel Mallick"
 date: "`r Sys.Date()`"
 output: BiocStyle::html_document
 vignette: >
@@ -16,6 +16,423 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+# Introduction
+
+The DAssemble package implements the ensemble framework for **differential analysis**.
+It is a lightweight implementation of the stacking method as applied to two or more 
+differential analysis (DA) results tables. 
+This vignette demonstrates **how to use DAssemble** with different datasets
+and showcases **supported p-value combination methods** (Stouffer, CCT, Vanilla, etc.).
+    
+
+## Install and load packages
+```{r, warning=FALSE, message=FALSE}
+# Clear workspace
+rm(list = ls())
+
+# Load Libraries
 library(DAssemble)
+library(tidyverse)
+library(Seurat)
+library(Matrix)
+library(pkgmaker)       # BiocManager::install("pkgmaker")
+library(foreach)
+library(doParallel)
+library(data.table)
+library(scDatasets)     # devtools::install_github("gongx030/scDatasets")
+library(SummarizedExperiment)
+library(Biobase)
+library(SC2P)            # devtools::install_github("haowulab/SC2P")
+library(SingleCellExperiment)
+library(gridExtra)
+library(reshape2)
+library(DESeq2)
+library(metapod)
+library(cowplot)
+library(scran)
+library(here)
+library(lme4)
+library(dplyr)
+library(readr)
+library(Maaslin2)
+library(ANCOMBC)
+library(TreeSummarizedExperiment)
+library(S4Vectors)
+library(tibble)
+library(MicrobiomeStat)
+library(ggplot2)
+library(vegan)
+library(plyr)
+library(LOCOM)
+library(edgeR)
+library(ALDEx2)          # BiocManager::install("ALDEx2")
+library(writexl)
+library(stringr)
+library(optparse)
+library(parallel)
+library(stringi)
+library(tidyr)
+library(airway)
+library(limma)
+library(Maaslin2)
+library(boot) #install.packages("boot")
+
+#install.packages("KernSmooth")
+library(KernSmooth)
+# Load Source Files
+setwd(here::here())
+pkgmaker::source_files('./Codes/Real_Data/helper', '*.R')
+
 ```
+
+Here we use three examples(different data types) to show how to use DAssemble() to integrate multiple differential analysis results.
+
+
+# Example one: Bulk RNA-Seq 
+
+## Data
+
+The airway dataset comprises RNA-Seq gene expression profiles from four human airway smooth muscle cell lines, each subjected to treatment with dexamethasone, a synthetic glucocorticoid, and corresponding untreated controls. This dataset is structured as a RangedSummarizedExperiment object, containing gene-level read counts and associated metadata, facilitating research into glucocorticoid responses in airway cells. It is publicly accessible through the Bioconductor package "airway."
+
+### Load Data
+
+```{r, warning=FALSE}
+data("airway")
+
+# Filter low-expression genes
+filter <- filterByExpr(airway)
+filtered <- airway[filter, ] 
+counts_full <- assay(filtered)
+#sample_info <- colData(filtered)
+sample_info <- as.data.frame(colData(filtered))
+
+# Subset to 1000 random genes
+set.seed(123)
+genes_subset <- sample(rownames(counts_full), size = 1000)
+counts_sub <- counts_full[genes_subset, ]
+treatment <- factor(sample_info$dex, levels = c("untrt", "trt"))
+
+```
+
+
+### Run edgeR 
+
+```{r, echo=TRUE, results='hide'}
+dge <- DGEList(counts = counts_sub, group = treatment)
+dge <- calcNormFactors(dge)
+design_edgeR <- model.matrix(~ treatment)
+dge <- estimateDisp(dge, design_edgeR)
+fit_edgeR <- glmQLFit(dge, design_edgeR)
+qlf_edgeR <- glmQLFTest(fit_edgeR, coef = 2)
+res_edgeR <- topTags(qlf_edgeR, n = Inf)$table
+
+## rename to appropriate variable names to fit DAssemble()
+res_edgeR_df <- res_edgeR %>%
+  rownames_to_column("ID") %>%
+  dplyr::rename(pvalue = PValue)
+```
+
+
+### Run DESeq2
+
+```{r, echo=TRUE, results='hide'}
+dds <- DESeqDataSetFromMatrix(
+  countData = counts_sub,
+  colData = as.data.frame(sample_info),
+  design = ~ dex
+)
+dds <- DESeq(dds)
+res_DESeq2 <- results(dds, contrast = c("dex", "trt", "untrt"))
+res_DESeq2_df <- as.data.frame(res_DESeq2)
+
+res_DESeq2_df <- as.data.frame(res_DESeq2) %>%
+  tibble::rownames_to_column("ID")
+```
+
+## Combine results
+Use DAssemble() to combine results.
+```{r, warning=FALSE}
+dflist1 <- list(res_edgeR_df, res_DESeq2_df)
+## SC
+parasStouffer1 <- DAssemble(dflist1, combine.method = "stouffer", correction = "BH")
+parasStouffer1[1:10, ]
+
+## MC
+parasVanilla1 = DAssemble(dflist1, combine.method = "minP", correction = "BY")
+parasVanilla1[1:10, ]
+
+## CC
+parasCCT1 = DAssemble(dflist1, combine.method = "CCT", correction = "BY")
+parasCCT1[1:10, ]
+```
+
+
+# Example two: Single-cell RNA-Seq
+
+## Data 
+
+The dataset (referred to here as the Brain data) contains expression counts of 100 single‐cells generated from two different cell types: oligodentrocytes cells ($N = 38$) and  astrocytes cells ($N = 62$). This dataset is obtained from the R package [SC2P](https://github.com/haowulab/SC2P)) and is available from the Gene Expression Omnibus database under accession number  [GSE67835](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE67835).
+
+### Load Data
+
+```{r, warning=FALSE}
+data(brain_scRNAseq)
+features = as.data.frame(t(Y))
+metadata = as.data.frame(design$celltype)
+names(metadata) = 'CellType'
+metadata$CellType = factor(metadata$CellType, levels = unique(metadata$CellType))
+rownames(features) = rownames(metadata)=paste('cell', 1:nrow(features), sep ='')
+colnames(features) = trimws(colnames(features)) # remove white space
+libSize = features %>% rowSums()
+ID = features %>% rownames()
+physeq = list(features = features,
+            metadata = metadata,
+            libSize = libSize,
+            ID = ID)
+```
+
+
+### Run DESeq2 
+
+```{r}
+# Standard DESeq2 pipeline
+formula = as.formula(paste('~', paste(colnames(metadata), collapse = "+"), sep=''))
+x = DESeqDataSetFromMatrix(countData = t(as.matrix(features)), colData = metadata, design = formula)
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+geoMeans = apply(counts(x), 1, gm_mean)
+x = estimateSizeFactors(x, geoMeans = geoMeans)
+fit = DESeq(x)
+
+# Combine results
+coef = coef(fit)[,-1]
+pval = results(fit,name=resultsNames(fit)[2])$pvalue
+paras = cbind.data.frame(coef, pval)
+paras$feature = rownames(paras)
+paras$metadata = names(metadata)
+paras$adjPval = as.numeric(p.adjust(paras$pval, method = 'BY'))
+paras = paras[order(paras$adjPval, decreasing = FALSE),]
+
+paras_DS = paras %>% 
+  dplyr::mutate(ID = feature) %>%  
+  dplyr::rename(pvalue = pval)
+```
+
+
+### Run logistic regression
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+paras_LR = fit.LR(features = features,
+                   metadata = metadata,
+                   libSize = libSize,
+                   ID = ID)
+
+paras_LR = paras_LR %>%
+  dplyr::mutate(ID = feature) %>%  
+  dplyr::rename(pvalue = pval_LR)
+```
+
+## Combine results 
+Use DAssemble() to combine results.
+```{r, warning=FALSE}
+dflist2 = list(paras_LR, paras_DS)
+## SC
+parasStouffer2 = DAssemble(dflist2, combine.method = "minP", correction = "BY")
+parasStouffer2[1:10, ]
+
+## MC
+parasVanilla2 = DAssemble(dflist2, combine.method = "minP", correction = "BY")
+parasVanilla2[1:10, ]
+
+## CC
+parasCCT2 = DAssemble(dflist2, combine.method = "CCT", correction = "BY")
+parasCCT2[1:10,]
+
+```
+
+
+# Example three: Microbiome
+
+## Data
+
+The dataset contains baseline multi-omics profiles from 132 individuals, including participants diagnosed with Crohn’s disease ($N = 41$), Ulcerative Colitis ($N = 30$), and non-IBD controls ($N = 23$). These data were collected as part of the Inflammatory Bowel Disease Multi-omics Database (IBDMDB), a study within the integrative Human Microbiome Project (iHMP), across five U.S. medical centers. The dataset is publicly available through the iHMP Data Coordination Center and supports multivariable modeling with covariates such as disease phenotype, age, and antibiotic use.
+
+Here we directly read the preprocessed data to avoid redundancy. The Preprocssing step is same with MaAsLin3 benchmark.
+
+
+### Load Data
+
+```{r}
+# For taxa_table
+taxa_table <- read_csv("~/Desktop/DAssemble/Codes/Dataset/taxa_table_baseline.csv")
+taxa_table <- as.data.frame(taxa_table)
+rownames(taxa_table) <- taxa_table$...1
+taxa_table$...1 <- NULL
+
+# For metadata
+metadata <- read_csv("~/Desktop/DAssemble/Codes/Dataset/metadata_baseline.csv")
+metadata <- as.data.frame(metadata)
+rownames(metadata) <- metadata$sample
+```
+
+
+### Run MaAsLin2
+
+```{r, echo=TRUE, results='hide'}
+workingDirectory <- "~/Desktop/DAssemble"
+analysisDirectory <- "~/Desktop/DAssemble"
+
+tmp_fit_out <- paste0(gsub("/$", "", analysisDirectory), "/fit_out_MaAsLin2_4")
+
+fit_out <- Maaslin2::Maaslin2(taxa_table, metadata, 
+                                min_abundance = 0, 
+                                min_prevalence = 0, 
+                                output = tmp_fit_out, 
+                                min_variance = 0, 
+                                normalization = 'TSS', 
+                                transform = 'log', 
+                                analysis_method = 'LM', 
+                                fixed_effects = c('diagnosis', 'Antibiotics', 'consent_age'), 
+                                save_scatter = FALSE, 
+                                save_models = F, 
+                                plot_heatmap = F, 
+                                plot_scatter = F,
+                                max_significance = 0.1, 
+                                reference = 'diagnosis,nonIBD')$results
+
+unlink(tmp_fit_out, recursive = T)
+
+fit_out <- data.frame(feature = fit_out$feature,
+           metadata = fit_out$metadata,
+           value = fit_out$value,
+           coef = fit_out$coef,
+           pval = fit_out$pval,
+           qval = fit_out$qval,
+           association = "abundance")
+
+fit_out <- fit_out[fit_out$metadata == "diagnosis", ]
+fit_out$qval <- p.adjust(fit_out$pval, method = "BH")
+
+paras_CR <- fit_out
+paras_CR <- paras_CR %>%
+  dplyr::rename(
+    coef_CR = coef, 
+    pval_CR = pval,   
+    qval_CR = qval
+  ) %>%
+  dplyr::mutate(
+    metadata = "diagnosis" 
+  ) %>%
+  dplyr::select(
+    feature,                
+    coef_CR,              
+    pval_CR,              
+    qval_CR,
+    metadata               
+  )
+
+```
+
+
+### Run Logistic Regression
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+taxa_table <- as.data.frame(t(taxa_table))
+metadata <- as.data.frame(metadata)
+input_features <- taxa_table
+input_metadata <- metadata
+results_list <- list()
+
+for (x in 1:ncol(input_features)) {
+    
+    feature_name <- colnames(input_features)[x] 
+    featuresVector <- input_features[, x]  
+    featuresVector <- as.factor(ifelse(featuresVector != 0, 1, 0))
+    dat_sub <- data.frame(expr = featuresVector, metadata)
+    formula <- as.formula("expr ~ diagnosis + consent_age + Antibiotics")
+    
+    fit <- tryCatch({
+      glm(formula = formula, data = dat_sub, family = "binomial")
+    }, error = function(err) {
+      try(lme4::glmer(formula = formula, data = dat_sub, family = "binomial",
+                      control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))))
+    })
+    
+    if (!inherits(fit, "try-error")) {
+        para <- as.data.frame(summary(fit)$coefficients[, c(1, 2, 4), drop = FALSE])
+    } else {
+        para <- as.data.frame(matrix(NA, nrow = 1, ncol = 3))
+        colnames(para) <- c("Estimate", "Std. Error", "Pr(>|z|)")
+        print(paste("Fitting problem for feature", feature_name, "returning NA"))
+    }
+
+    para$feature <- feature_name
+    results_list[[feature_name]] <- para
+}
+
+results_df <- do.call(rbind, results_list)
+results_df$variable <- rownames(results_df)  
+diagnosis_subset <- results_df[grep("diagnosis", results_df$variable, ignore.case = TRUE), ]
+diagnosis_subset$qval_LR <- p.adjust(diagnosis_subset$`Pr(>|z|)`, method = "BH")
+
+paras_LR2 <- diagnosis_subset
+
+paras_LR2 <- paras_LR2 %>%
+  dplyr::mutate(
+    metadata = "diagnosis"  
+  ) %>%
+  dplyr::select(
+    feature,                
+    coef_LR = Estimate,    
+    pval_LR = `Pr(>|z|)`, 
+    qval_LR,
+    metadata              
+  )
+
+rownames(paras_LR2) <- NULL
+print(paras_LR2)
+```
+
+## Combine results
+Use DAssemble() to combine results.
+```{r, warning=FALSE}
+paras_CR <- paras_CR %>%
+  dplyr::mutate(ID = gsub("\\.t__", "|t__", feature))  %>%  
+  dplyr::rename(pvalue = pval_CR) 
+
+unique(fit_out$metadata)
+fit_out <- fit_out[fit_out$metadata == "diagnosis", ]
+nrow(fit_out)
+
+paras_LR2 <- paras_LR2 %>%
+  dplyr::mutate(ID = feature) %>% 
+  dplyr::rename(pvalue = pval_LR) 
+
+dflist3 = list(paras_LR2, paras_CR)
+## MC
+parasVanilla3 = DAssemble(dflist3, combine.method = "minP", correction = "BH")
+parasVanilla3[1:10, ]
+## CC
+parasCCT3 = DAssemble(dflist3, combine.method = "CCT", correction = "BH")
+parasCCT3[1:10, ]
+## SC
+parasStouffer3 = DAssemble(dflist3, combine.method = "stouffer", correction = "BH")
+parasStouffer3[1:10,]
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -11,7 +11,7 @@ DAssemble(dflist, combine.method = "stouffer", correction = "BH")
 
 \item{combine.method}{A character string specifying the p-value combination method.
 Must be one of \code{"stouffer"}, \code{"CCT"}, \code{"fisher"}, \code{"invchisq"}, \code{"binomtest"}, \code{"bonferroni"},
-\code{"snippet"}, \code{"harmonic"}, or \code{"minP"}. Default is \code{"stouffer"}.}
+\code{"tippett"}, \code{"harmonic"}, or \code{"minP"}. Default is \code{"stouffer"}.}
 
 \item{correction}{A character string specifying the method for p-value correction.
 Default is \code{"BH"} (Benjamini-Hochberg). Other valid values are \code{"bonferroni"}, \code{"holm"}, \code{"hochberg"},

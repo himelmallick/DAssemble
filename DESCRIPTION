@@ -15,22 +15,33 @@ Description:
 License: MIT + file LICENSE
 Encoding: UTF-8
 biocViews: 
-    DifferentialExpression
+    DifferentialExpression,
+    Software,
+    RNASeq,
+    Microbiome
 Imports: 
     metapod,
     poolr,
     harmonicmeanp,
-    DESeq2,
-    airway,
-    edgeR,
-    limma,
-    tidyverse,
     dplyr
 Suggests: 
+    DESeq2,
+    edgeR,
+    tidyverse,
+    airway,
+    limma,
     testthat,
     knitr,
     rmarkdown,
-    BiocStyle
+    BiocStyle,
+    Seurat,
+    KernSmooth,
+    foreign,
+    nnet,
+    rpart,
+    spatial,
+    boot,
+    class
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2.9000
 VignetteBuilder: knitr
