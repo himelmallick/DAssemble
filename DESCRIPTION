@@ -1,0 +1,63 @@
+Package: DAssemble
+Type: Package
+Title: Ensemble models for differential analysis
+Version: 0.99.0
+Authors@R: 
+    c(
+        person("Himel", "Mallick", email = "him4004@med.cornell.edu", role = c("aut", "cre")),
+        person("Ziyu", "Liu", email = "lclcencen@gmail.com", role = "aut"),
+        person("Jialin", "Gao", email = "jialingao999@gmail.com", role = "aut"))
+Description: 
+    The DAssemble package implements an ensemble framework for differential-abundance
+    and differential-expression analysis across bulk RNA-seq, single-cell RNA-seq,
+    and microbiome studies. It wraps a collection of popular DA/DE methods as core
+    methods and combines them via Cauchy Combination Tests (CCT), optionally
+    augmented by simple enhancers such as Wilcoxon, Kolmogorov–Smirnov, and
+    presence–absence logistic regression.
+License: MIT + file LICENSE
+Encoding: UTF-8
+biocViews: Software, StatisticalMethod, DifferentialExpression, RNASeq, SingleCell, Microbiome
+Depends: 
+    R (>= 4.3.0)
+Imports:
+    methods,
+    stats,
+    utils,
+    graphics,
+    grDevices,
+    dplyr,
+    DESeq2,
+    edgeR,
+    limma,
+    dearseq,
+    metagenomeSeq,
+    MAST,
+    Tweedieverse,
+    Maaslin2,
+    maaslin3,
+    LOCOM,
+    LinDA,
+    ANCOMBC,
+    ALDEx2,
+    Robseq,
+    SummarizedExperiment,
+    TreeSummarizedExperiment,
+    S4Vectors
+Suggests:
+    scran,
+    SingleCellExperiment,
+    knitr,
+    rmarkdown,
+    BiocStyle,
+    Seurat,
+    KernSmooth,
+    foreign,
+    nnet,
+    rpart,
+    spatial,
+    boot,
+    class
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr
+URL: https://github.com/Ziyu-Liu-WCM/DAssemble
