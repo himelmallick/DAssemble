@@ -239,8 +239,13 @@ DA_fit_core_Robseq <- function(features, metadata, expVar) {
   # Package sanity check #
   ########################
   
-  if (!requireNamespace("Robseq", quietly = TRUE))
-    stop("Robseq required.")
+  required_pkgs <- c("DESeq2", "edgeR", "MASS", "dfadjust", "preprocessCore")
+  missing_pkgs <- required_pkgs[
+    !vapply(required_pkgs, requireNamespace, logical(1), quietly = TRUE)
+  ]
+  if (length(missing_pkgs) > 0L) {
+    stop("Robseq core requires: ", paste(missing_pkgs, collapse = ", "))
+  }
   
   ############################
   # Standard Robseq pipeline #
@@ -249,7 +254,7 @@ DA_fit_core_Robseq <- function(features, metadata, expVar) {
   countMat <- t(as.matrix(features))
   meta_rob <- metadata
   meta_rob$Exposure <- metadata[[expVar]]
-  fit <- Robseq::robust.dge(features = countMat, metadata = meta_rob)
+  fit <- DAssemble_robust_dge(features = countMat, metadata = meta_rob)
   res <- as.data.frame(fit$res)
   
   #####################################################
@@ -442,15 +447,25 @@ DA_fit_core_LinDA <- function(features, metadata, expVar) {
   # Package sanity check #
   ########################
   
-  if (!requireNamespace("LinDA", quietly = TRUE))
-    stop("LinDA required.")
+  if (!requireNamespace("MicrobiomeStat", quietly = TRUE))
+    stop("MicrobiomeStat required for LinDA.")
   
   ###########################
   # Standard LinDA pipeline #
   ###########################
   
   otu <- t(as.matrix(features))
-  out <- LinDA::linda(otu.tab = otu, meta = metadata, formula = paste("~", expVar))
+  out <- MicrobiomeStat::linda(
+    feature.dat = otu,
+    meta.dat = metadata,
+    formula = paste("~", expVar),
+    feature.dat.type = "count",
+    prev.filter = 0,
+    mean.abund.filter = 0,
+    max.abund.filter = 0,
+    is.winsor = FALSE,
+    verbose = FALSE
+  )
   res <- as.data.frame(out$output[[1]])
   
   #####################################################
@@ -512,25 +527,30 @@ DA_fit_core_Tweedieverse <- function(features, metadata, expVar) {
   # Package sanity check #
   ########################
   
-  if (!requireNamespace("Tweedieverse", quietly = TRUE))
-    stop("Tweedieverse required.")
+  required_pkgs <- c("cplm", "glmmTMB", "logging", "pbapply")
+  missing_pkgs <- required_pkgs[
+    !vapply(required_pkgs, requireNamespace, logical(1), quietly = TRUE)
+  ]
+  if (length(missing_pkgs) > 0L) {
+    stop("Tweedieverse core requires: ", paste(missing_pkgs, collapse = ", "))
+  }
   
   ##################################
   # Standard Tweedieverse pipeline #
   ##################################
   
-  tmp <- file.path(tempdir(), paste0("tw_", sample(1e8,1)))
-  dir.create(tmp, showWarnings = FALSE)
-  res <- Tweedieverse(features,
-                      metadata,
-                      output = tmp,
-                      max_significance = 1,
-                      abd_threshold = -Inf, # No additional filtering
-                      fixed_effects = expVar,
-                      adjust_offset = TRUE, # Expects a variable named scale_factor
-                      median_comparison = FALSE,
-                      median_subtraction = FALSE,
-                      na.action = na.pass)
+  res <- DAssemble_Tweedieverse(
+    features,
+    metadata,
+    output = NULL,
+    max_significance = 1,
+    abd_threshold = -Inf, # No additional filtering
+    fixed_effects = expVar,
+    adjust_offset = TRUE,
+    median_comparison = FALSE,
+    median_subtraction = FALSE,
+    na.action = na.pass
+  )
   
   
   #####################################################

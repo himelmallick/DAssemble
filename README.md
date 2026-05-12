@@ -37,18 +37,15 @@ install any missing packages and then load them.
 # All required packages
 req_pkgs <- c(
   "MAST", "DESeq2", "edgeR", "limma", "metagenomeSeq",
-  "dearseq", "SummarizedExperiment", "ALDEx2", "LinDA",
-  "LOCOM", "Maaslin2", "maaslin3", "Tweedieverse",
-  "Robseq", "ANCOMBC", "TreeSummarizedExperiment", "S4Vectors"
+  "dearseq", "SummarizedExperiment", "ALDEx2", "MicrobiomeStat",
+  "LOCOM", "Maaslin2", "maaslin3", "cplm", "dfadjust", "glmmTMB",
+  "logging", "MASS", "pbapply", "preprocessCore",
+  "ANCOMBC", "TreeSummarizedExperiment", "S4Vectors"
 )
 
 # GitHub-only packages
 github_pkgs <- c(
-  LinDA        = "zhouhj1994/LinDA",
-  LOCOM        = "yijuanhu/LOCOM",
-  Tweedieverse = "himelmallick/Tweedieverse",
-  maaslin3     = "biobakery/maaslin3",
-  Robseq       = "schatterjee30/Robseq"
+  LOCOM        = "yijuanhu/LOCOM"
 )
 
 # Install required managers
@@ -105,12 +102,12 @@ cat("All required packages installed and loaded successfully.\n")
 | MAST        | MAST                            |
 | dearseq     | dearseq + SummarizedExperiment  |
 | ALDEx2      | ALDEx2                          |
-| LinDA       | LinDA (GitHub)                  |
+| LinDA       | MicrobiomeStat                  |
 | LOCOM      | LOCOM (GitHub)                  |
 | Maaslin2    | Maaslin2                        |
-| Maaslin3    | maaslin3 (GitHub)               |
-| Tweedieverse | Tweedieverse (GitHub)          |
-| Robseq      | Robseq (GitHub)                 |
+| Maaslin3    | maaslin3                        |
+| Tweedieverse | Internal DAssemble implementation using cplm/glmmTMB |
+| Robseq      | Internal DAssemble implementation using MASS/dfadjust |
 | ANCOM-BC2   | ANCOMBC + TreeSummarizedExperiment + S4Vectors |
 
 
@@ -351,5 +348,3 @@ compositional, we use centered log‑ratio (CLR) normalization
 (`enhancer_norm = "clr"`).  The `$components` element contains the
 individual Wilcoxon, logistic regression and KS results, while
 `$ensembles` summarises every sub‑combination of the three enhancers.
-
-

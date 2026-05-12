@@ -1,0 +1,9 @@
+The internal Tweedieverse implementation in this package is adapted from the
+Tweedieverse package by Himel Mallick and Ali Rahnavard.
+
+Only the modeling code needed by DAssemble's Tweedieverse core method is bundled
+here; visualization and standalone package interfaces are not exported.
+
+The internal Robseq implementation is adapted from the Robseq package developed
+by the lab. Only the modeling code needed by DAssemble's Robseq core method is
+bundled here; the standalone package interface is not exported.
