@@ -94,7 +94,7 @@ fit.CPLM <- function(features,
   {
     logging::loginfo("Creating cluster of %s R processes", cores)
     cluster <- parallel::makeCluster(cores)
-    clusterExport(
+    parallel::clusterExport(
       cluster,
       c(
         "features",
@@ -164,7 +164,7 @@ fit.CPLM <- function(features,
         output$para <- summary_function(fit)
       }
       else{
-        logging::logwarn(paste("Fitting problem for feature", x, "returning NA"))
+        logging::logwarn("Fitting problem for feature %s, returning NA", x)
         output$para <-
           as.data.frame(matrix(NA,  nrow = ncol(metadata) - 1, ncol = 5)) # Everything except offset
         output$para$name <-

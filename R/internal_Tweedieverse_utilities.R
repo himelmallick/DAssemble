@@ -79,7 +79,6 @@ get_AICtab<-function(fit){
 # Adapted form: https://rstudio-pubs-static.s3.amazonaws.com/455435_30729e265f7a4d049400d03a18e218db.html
 
 #' Entropy of a Vector
-#' @noRd
 #'
 #' Compute Shannon entropy for a vector.
 #'
@@ -87,6 +86,7 @@ get_AICtab<-function(fit){
 #' @return A numeric entropy value.
 #' @examples
 #' entropy(c("A", "A", "B", "B", "C"))
+#' @noRd
 entropy <- function(target) {
   #if(all(is.na(target)))  0 
   freq <- table(target)/length(target)
@@ -104,10 +104,10 @@ IG_numeric<-function(data, feature, target, bins=4) {
   #compute entropy for the parent
   e0<-entropy(data[,target])
   
-  data$cat<-cut(data[,feature], breaks = bins, labels = seq_len(bins))
+  data$bin_cat<-cut(data[,feature], breaks = bins, labels = seq_len(bins))
   
   #use dplyr to compute e and p for each value of the feature
-  dd_data <- dplyr::summarise(dplyr::group_by(data, cat),
+  dd_data <- dplyr::summarise(dplyr::group_by(data, bin_cat),
     e = entropy(get(target)),
     n = length(get(target)),
     min = min(get(feature)),
@@ -186,17 +186,14 @@ extractAssay <- function(input, assay_name = "counts") {
   # Extract assay name based on the user input
   if (assay_name %in% SummarizedExperiment::assayNames(input)) {
     counts_data <- SummarizedExperiment::assay(input, assay_name)
-    cat("The specified assay has been extracted\n")
     return(as.data.frame(as.matrix(counts_data)))
   } else {
-    cat("The specified assay was not found\n")
     return(NULL)
   }
 }
 
 
 #' Median Comparison for Compositionality Adjustment
-#' @noRd
 #'
 #' Adjust Tweedieverse(or any other differential analysis methods) coefficient estimates and p-values by testing each taxon
 #' against the *median* effect for the same metadata variable - a simple
@@ -308,6 +305,7 @@ extractAssay <- function(input, assay_name = "counts") {
 #' 
 #' }
 #'
+#' @noRd
 median_comparison_tweedie <- function(df,
                                       p_cutoff = 0.95,
                                       subtract_median = FALSE,

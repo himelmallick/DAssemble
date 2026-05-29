@@ -35,11 +35,11 @@ DAssemble_robseq_rle_norm <- function(features,
   formula <- stats::as.formula(
     paste("~", paste(colnames(metadata), collapse = "+"), sep = "")
   )
-  x <- suppressMessages(DESeq2::DESeqDataSetFromMatrix(
+  x <- DESeq2::DESeqDataSetFromMatrix(
     countData = as.matrix(features),
     colData = metadata,
     design = formula
-  ))
+  )
   gm_mean <- function(x, na.rm = TRUE) {
     exp(sum(log(x[x > 0]), na.rm = na.rm) / length(x))
   }
@@ -51,14 +51,14 @@ DAssemble_robseq_rle_norm <- function(features,
 DAssemble_robseq_per_gene_mod <- function(expr, formula, regData, expVar) {
   regData <- data.frame(expr, regData)
   fit_rlm <- tryCatch(
-    suppressWarnings(MASS::rlm(formula, data = regData)),
-    error = function(err) suppressWarnings(stats::lm(formula, data = regData))
+    MASS::rlm(formula, data = regData),
+    error = function(err) stats::lm(formula, data = regData)
   )
 
   fit_se <- tryCatch(
     dfadjust::dfadjustSE(fit_rlm),
     error = function(err) {
-      fit_lm <- suppressWarnings(stats::lm(formula, data = regData))
+      fit_lm <- stats::lm(formula, data = regData)
       dfadjust::dfadjustSE(fit_lm)
     }
   )
@@ -108,27 +108,25 @@ DAssemble_robust_dge <- function(features,
   } else {
     regData <- metadata[, c(expVar, coVars)]
   }
-  regData[sapply(regData, is.character)] <-
-    lapply(regData[sapply(regData, is.character)], as.factor)
+  character_cols <- vapply(regData, is.character, logical(1))
+  regData[character_cols] <- lapply(regData[character_cols], as.factor)
   formula <- stats::as.formula(
     paste("expr ~ ", paste(colnames(regData), collapse = "+"))
   )
 
   if (norm.method == "TMM") {
-    norm_y <- suppressMessages(DAssemble_robseq_tmm_norm(features))
+    norm_y <- DAssemble_robseq_tmm_norm(features)
     norm_y <- log2(norm_y + 0.5)
   } else if (norm.method == "RLE") {
-    norm_y <- suppressMessages(
-      DAssemble_robseq_rle_norm(features, metadata, coVars, expVar)
-    )
+    norm_y <- DAssemble_robseq_rle_norm(features, metadata, coVars, expVar)
     norm_y <- log2(norm_y + 0.5)
   } else if (norm.method == "CPM") {
     norm_y <- data.frame(edgeR::cpm(features, log = TRUE, prior.count = 1))
   } else if (norm.method == "Quantile") {
-    norm_y <- suppressMessages(DAssemble_robseq_quantile_norm(features))
+    norm_y <- DAssemble_robseq_quantile_norm(features)
     norm_y <- log2(norm_y + 0.5)
   } else if (norm.method == "UQuantile") {
-    norm_y <- suppressMessages(DAssemble_robseq_upper_quartile_norm(features))
+    norm_y <- DAssemble_robseq_upper_quartile_norm(features)
     norm_y <- log2(norm_y + 0.5)
   } else {
     stop("Unknown Robseq normalization method: ", norm.method)

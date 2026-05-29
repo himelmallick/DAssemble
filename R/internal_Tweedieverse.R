@@ -1,5 +1,4 @@
 #' Differential analysis of multi-omics data using Tweedie GLMs
-#' @noRd
 #'
 #' Fit a per-feature Tweedie generalized linear model to omics features.
 
@@ -62,12 +61,9 @@
 #' @param heatmap_first_n In heatmap, plot top N features with significant associations (default is 50).
 #' @param reference The factor to use as a reference for a variable with more than two levels provided as a string of 'variable,reference' semi-colon delimited for multiple variables (default is NULL).
 #'
-#' @importFrom grDevices colorRampPalette dev.off jpeg pdf
 #' @importFrom stats coef fitted as.formula na.exclude p.adjust plogis relevel sd update
 #' @importFrom utils capture.output read.table type.convert write.table
-#' @importFrom SummarizedExperiment colData
 #' @importFrom dplyr everything
-#' @importFrom parallel clusterExport
 #' @return A data frame containing coefficient estimates, p-values, and q-values (multiplicity-adjusted p-values) are returned.
 #'
 #' @author Himel Mallick, \email{him4004@@med.cornell.edu}
@@ -95,6 +91,7 @@
 #' # For a full iHMP workflow example, see:
 #' # vignette("Tweedieverse-vignette", package = "Tweedieverse")
 #' @keywords microbiome metagenomics multiomics scRNASeq tweedie singlecell
+#' @noRd
 DAssemble_Tweedieverse <- function(input_features,
                          input_metadata = NULL,
                          output = NULL,
@@ -167,11 +164,7 @@ DAssemble_Tweedieverse <- function(input_features,
   } else if (!(is.character(input_features)) && !(is.data.frame(input_features))) {
     stop(
       sprintf(
-        paste(
-          "Input data of class <%s> not supported.",
-          "Please use SummarizedExperiment, SingleCellExperiment,",
-          "RangedSummarizedExperiment, TreeSummarizedExperiment, or data.frame."
-        ),
+        "Input data of class <%s> not supported. Please use SummarizedExperiment, SingleCellExperiment, RangedSummarizedExperiment, TreeSummarizedExperiment, or data.frame.",
         class(input_features)[1]
       )
     )
@@ -190,12 +183,7 @@ DAssemble_Tweedieverse <- function(input_features,
       metadata <- input_metadata
     }
     if (is.null(metadata)) {
-      stop(
-        paste(
-          "input_metadata must be provided when input_features is not",
-          "a SummarizedExperiment-like object."
-        )
-      )
+      stop("input_metadata must be provided when input_features is not a SummarizedExperiment-like object.")
     }
   }
     
@@ -228,7 +216,7 @@ DAssemble_Tweedieverse <- function(input_features,
     log_file <- file.path(output, "Tweedieverse.log")
     # Remove log file if already exists (to avoid append)
     if (file.exists(log_file)) {
-      print(paste("Warning: Deleting existing log file:", log_file))
+      logging::logwarn("Deleting existing log file: %s", log_file)
       unlink(log_file)
     }
     logging::basicConfig(level = 'FINEST')
@@ -331,12 +319,7 @@ DAssemble_Tweedieverse <- function(input_features,
   
   prop_options <- c(prev_threshold, cutoff_ZSCP, max_significance)
   if (any(prop_options < 0) || any(prop_options > 1)) {
-    stop(
-      paste(
-        "One of the following is outside [0, 1]:",
-        "prev_threshold, cutoff_ZSCP, max_significance"
-      )
-    )
+    stop("One of the following is outside [0, 1]: prev_threshold, cutoff_ZSCP, max_significance")
   }
   
   ###############################################################
@@ -488,10 +471,14 @@ DAssemble_Tweedieverse <- function(input_features,
       if (!is.na(ref)) {
         metadata[, i] <- stats::relevel(metadata[, i], ref = ref)
       } else {
-        stop(paste("Please provide the reference for the variable '",
-                   i, "' which includes more than 2 levels: ",
-                   paste(as.character(mlevels), collapse=", "), ".", sep=""))   
-      } 
+        stop(
+          sprintf(
+            "Please provide the reference for the variable '%s' which includes more than 2 levels: %s.",
+            i,
+            toString(as.character(mlevels))
+          )
+        )
+      }
     } else {
       stop("Provided categorical metadata has fewer than 2 unique, non-NA values.")
     }
@@ -565,12 +552,7 @@ DAssemble_Tweedieverse <- function(input_features,
     offset <- rowSums(final_features)
   } else {
     if (!scale_factor %in% colnames(unfiltered_metadata)) {
-      stop(
-        paste(
-          "The specified scale_factor variable is not present in the metadata table:\n",
-          scale_factor
-        )
-      )
+      stop("The specified scale_factor variable is not present in the metadata table: ", scale_factor)
     } else {
       offset <- unfiltered_metadata[, scale_factor]
       unfiltered_metadata <-
@@ -662,12 +644,7 @@ DAssemble_Tweedieverse <- function(input_features,
         tryCatch(
           as.formula(random_effects_formula_text),
           error = function(e)
-            stop(
-              paste(
-                "Invalid formula for random effects: ",
-                random_effects_formula_text
-              )
-            )
+            stop("Invalid formula for random effects: ", random_effects_formula_text)
         )
     }
   }
@@ -685,13 +662,7 @@ DAssemble_Tweedieverse <- function(input_features,
     tryCatch(
       as.formula(formula_text),
       error = function(e)
-        stop(
-          paste(
-            "Invalid formula.",
-            "Please provide a different formula: ",
-            formula_text
-          )
-        )
+        stop("Invalid formula. Please provide a different formula: ", formula_text)
     )
 
   #############################################################
@@ -806,7 +777,7 @@ DAssemble_Tweedieverse <- function(input_features,
         "pval",
         "qval"
       ),
-      everything()
+      dplyr::everything()
     )
   
   
@@ -847,65 +818,13 @@ DAssemble_Tweedieverse <- function(input_features,
     quote = FALSE,
     row.names = FALSE
   )
-  
-  
-  #######################################################
-  # Create visualizations for results passing threshold #
-  #######################################################
-  
-  logging::loginfo("Writing Tweedie inxed plot to file: %s",
-                   output)
-  tryCatch({
-    tweedie_index_plot(ordered_results, figures_folder)
-    
-  }, error = function(err) {
-    logging::logerror("Unable to do make a Tweedie inxed plot of results!!!")
-    logging::logerror(err)
-    # dev.off()
-  })
-  
-  if (plot_heatmap &&
-      nrow(significant_results) > 0 &&
-      length(unique(significant_results$metadata)) > 1) {
-    heatmap_file <- file.path(output, "Tweedieverse_Heatmap.pdf")
-    logging::loginfo("Writing heatmap of significant results to file: %s",
-                     heatmap_file)
-    tryCatch({
-      save_heatmap(significant_results_file,
-                   heatmap_file,
-                   figures_folder,
-                   first_n = heatmap_first_n)
-    }, error = function(err) {
-      logging::logerror("Unable to do make a hetamp of results!!!")
-      logging::logerror(err)
-      # dev.off()
-    })
-  }
-  
-  if (plot_scatter) {
-    logging::loginfo(
-      paste(
-        "Writing association plots",
-        "(one for each significant association)",
-        "to output folder: %s"
-      ),
-      output
-    )
-    association_plots(
-      metadata,
-      final_features/offset,
-      significant_results_file,
-      output,
-      figures_folder
-    )
-  }
   }
   return(significant_results)
 }
 
 
 option_not_valid_error <- function(message, valid_options) {
-  logging::logerror(paste(message, ": %s"), toString(valid_options))
+  logging::logerror("%s: %s", message, toString(valid_options))
   stop("Option not valid", call. = FALSE)
 }
 

@@ -1,0 +1,6 @@
+DAssemble 0.99.0
+=================
+
+* Initial Bioconductor submission.
+* Added MultiAssayExperiment input support.
+* Added conditional backend support for differential analysis methods.

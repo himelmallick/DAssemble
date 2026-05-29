@@ -15,24 +15,24 @@ DA_fit_core_DESeq2 <- function(features, metadata, expVar) {
   # Standard DESeq2 pipeline #
   ############################
   
-  design <- as.formula(paste("~", expVar))
+  design <- stats::as.formula(paste("~", expVar))
   x <- DESeq2::DESeqDataSetFromMatrix(countData = t(as.matrix(features)), colData = metadata, design = design)
-  gm_mean = function(x, na.rm=TRUE){
+  gm_mean <- function(x, na.rm=TRUE){
     exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
   }
-  geoMeans = apply(counts(x), 1, gm_mean)
-  x = estimateSizeFactors(x, geoMeans = geoMeans)
-  fit <- DESeq(x)
+  geoMeans <- apply(DESeq2::counts(x), 1, gm_mean)
+  x <- DESeq2::estimateSizeFactors(x, geoMeans = geoMeans)
+  fit <- DESeq2::DESeq(x)
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
   #####################################################
   
-  feature<-rownames(coef(fit))
-  pval_core<-results(fit,name=resultsNames(fit)[2])$pvalue
+  feature<-rownames(stats::coef(fit))
+  pval_core<-DESeq2::results(fit,name=DESeq2::resultsNames(fit)[2])$pvalue
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
+  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
   return(df)
 }
 
@@ -53,15 +53,15 @@ DA_fit_core_edgeR <- function(features, metadata, expVar) {
   # Standard edgeR pipeline #
   ###########################
   
-  d <- DGEList(counts = t(features))
-  d <- suppressWarnings(edgeR::calcNormFactors(d, method='TMM'))
-  design <- model.matrix(as.formula(paste("~", expVar)), metadata)
+  d <- edgeR::DGEList(counts = t(features))
+  d <- edgeR::calcNormFactors(d, method='TMM')
+  design <- stats::model.matrix(stats::as.formula(paste("~", expVar)), metadata)
   # d <- estimateDisp(d, design) -> This step is equivalent to the next three steps
-  d <- estimateGLMCommonDisp(d, design)
-  d <- estimateGLMTrendedDisp(d, design)
-  d <- estimateGLMTagwiseDisp(d, design)
-  fit <- glmFit(d, design)
-  fit<- glmLRT(fit, 2)
+  d <- edgeR::estimateGLMCommonDisp(d, design)
+  d <- edgeR::estimateGLMTrendedDisp(d, design)
+  d <- edgeR::estimateGLMTagwiseDisp(d, design)
+  fit <- edgeR::glmFit(d, design)
+  fit<- edgeR::glmLRT(fit, 2)
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -71,7 +71,7 @@ DA_fit_core_edgeR <- function(features, metadata, expVar) {
   pval_core<-fit$table$PValue
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
+  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
   return(df)
   
 }
@@ -94,9 +94,9 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar) {
   # Standard limmaVOOM pipeline #
   ###############################
   
-  design <- model.matrix(as.formula(paste("~", expVar)), metadata)
+  design <- stats::model.matrix(stats::as.formula(paste("~", expVar)), metadata)
   x<-t(as.matrix(features)+1) # Convert to matrix, round up to nearest integer, and transpose
-  y <- voom(x,design,plot=FALSE)
+  y <- limma::voom(x,design,plot=FALSE)
   fit <- limma::lmFit(y,design)
   fit <- limma::eBayes(fit)
   
@@ -108,7 +108,7 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar) {
   pval_core<-fit$p.value[,-1]
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
+  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
   return(df)
 }
 
@@ -130,12 +130,12 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar) {
   # Standard metagenomeSeq pipeline #
   ###################################
   
-  design <- model.matrix(as.formula(paste("~", expVar)), metadata)
+  design <- stats::model.matrix(stats::as.formula(paste("~", expVar)), metadata)
   count_table <- t(features) 
-  mgsdata <- newMRexperiment(counts = count_table)
-  mgsp <- cumNormStat(mgsdata)
-  mgsdata <- cumNorm(mgsdata, mgsp)
-  fit <- fitZig(obj=mgsdata,mod=design)
+  mgsdata <- metagenomeSeq::newMRexperiment(counts = count_table)
+  mgsp <- metagenomeSeq::cumNormStat(mgsdata)
+  mgsdata <- metagenomeSeq::cumNorm(mgsdata, mgsp)
+  fit <- metagenomeSeq::fitZig(obj=mgsdata,mod=design)
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -145,7 +145,7 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar) {
   pval_core<-fit@eb$p.value[,!colnames(fit@fit$coefficients) %in% c("(Intercept)", "scalingFactor")]
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
+  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
   return(df)
   
 }
@@ -170,15 +170,20 @@ DA_fit_core_MAST <- function(features, metadata, expVar) {
   countData <- t(features)
   expr <- log2(edgeR::cpm(countData)+1)
   sca <- MAST::FromMatrix(exprsArray = expr)
-  cdr2 <-colSums(assay(sca)>0)
-  colData(sca)$cngeneson <- scale(cdr2)
-  colData(sca)$condition <- droplevels(factor(metadata[[expVar]]))
-  zlmCond <- zlm(~condition + cngeneson, sca)
+  cdr2 <- colSums(SummarizedExperiment::assay(sca)>0)
+  cd <- SummarizedExperiment::colData(sca)
+  cd$cngeneson <- scale(cdr2)
+  cd$condition <- droplevels(factor(metadata[[expVar]]))
+  SummarizedExperiment::colData(sca) <- cd
+  zlmCond <- MAST::zlm(~condition + cngeneson, sca)
   test.cond <- colnames(zlmCond@coefC)[2]
   summaryCond <- summary(zlmCond, doLRT = test.cond)
-  summaryDt <- summaryCond$datatable
-  fcHurdle <- merge(summaryDt[contrast==test.cond & component=='H',.(primerid, `Pr(>Chisq)`)], #hurdle P values
-                    summaryDt[contrast==test.cond & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
+  summaryDt <- as.data.frame(summaryCond$datatable)
+  h <- summaryDt[summaryDt$contrast == test.cond & summaryDt$component == "H",
+                 c("primerid", "Pr(>Chisq)")]
+  lf <- summaryDt[summaryDt$contrast == test.cond & summaryDt$component == "logFC",
+                  c("primerid", "coef", "ci.hi", "ci.lo")]
+  fcHurdle <- merge(h, lf, by='primerid')
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -189,7 +194,7 @@ DA_fit_core_MAST <- function(features, metadata, expVar) {
   df<-cbind.data.frame(feature, pval_core)
   names(df)[2] <- c('pval_core')
   df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
+  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
   return(df)
 }
 
@@ -210,7 +215,7 @@ DA_fit_core_dearseq <- function(features, metadata, expVar) {
   # Standard dearseq pipeline #
   #############################
   
-  se_raw <- SummarizedExperiment(assays = as.matrix(t(features)), colData = metadata)
+  se_raw <- SummarizedExperiment::SummarizedExperiment(assays = as.matrix(t(features)), colData = metadata)
   which_test <- if (nrow(metadata) <= 20) "permutation" else "asymptotic"
   fit <- dearseq::dear_seq(object = se_raw, variables2test = expVar,
                            which_test = which_test, preprocessed = FALSE,
@@ -225,7 +230,7 @@ DA_fit_core_dearseq <- function(features, metadata, expVar) {
   pval_core <- fit$pvals$rawPval
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
+  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
   return(df)
 }
 
@@ -244,7 +249,7 @@ DA_fit_core_Robseq <- function(features, metadata, expVar) {
     !vapply(required_pkgs, requireNamespace, logical(1), quietly = TRUE)
   ]
   if (length(missing_pkgs) > 0L) {
-    stop("Robseq core requires: ", paste(missing_pkgs, collapse = ", "))
+    stop("Robseq core requires: ", toString(missing_pkgs))
   }
   
   ############################
@@ -492,8 +497,8 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar) {
   # Package sanity check #
   ########################
   
-  if (!requireNamespace("LOCOM", quietly = TRUE))
-    stop("LOCOM required.")
+  if (!requireNamespace("LOCOM2", quietly = TRUE))
+    stop("LOCOM2 required.")
   
   ###########################
   # Standard LOCOM pipeline #
@@ -502,14 +507,23 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar) {
   otu <- as.matrix(features)
   Y <- metadata[[expVar]]
   if (is.factor(Y)) Y <- as.numeric(Y) - 1
-  fit <- LOCOM::locom(otu.table = otu, Y = Y, seed = 1234, filter.thresh = 0) # No additional filtering
+  fit <- LOCOM2::locom2(
+    otu.table = otu,
+    Y = Y,
+    seed = 1234,
+    filter = FALSE,
+    verbose = FALSE
+  )
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
   #####################################################
   
-  feature <- colnames(fit$p.otu)
-  pval_core <- as.vector(fit$p.otu)
+  feature <- names(fit$p.otu.Wald)
+  if (is.null(feature)) {
+    feature <- colnames(otu)
+  }
+  pval_core <- as.vector(fit$p.otu.Wald)
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
   df<-dplyr::select(df, c('feature', 'metadata'), everything())
@@ -532,7 +546,7 @@ DA_fit_core_Tweedieverse <- function(features, metadata, expVar) {
     !vapply(required_pkgs, requireNamespace, logical(1), quietly = TRUE)
   ]
   if (length(missing_pkgs) > 0L) {
-    stop("Tweedieverse core requires: ", paste(missing_pkgs, collapse = ", "))
+    stop("Tweedieverse core requires: ", toString(missing_pkgs))
   }
   
   ##################################

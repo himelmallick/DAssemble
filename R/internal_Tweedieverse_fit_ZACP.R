@@ -80,11 +80,11 @@ fit.ZACP <- function(features,
       # If only one model has failed the other becomes winner by default
       # If both have failed
       if (inherits(fitA, "try-error") && !inherits(fitB, "try-error")) {
-        fit_indicator = "ZICP"
+        fit_indicator <- "ZICP"
       } else if (!inherits(fitA, "try-error") && inherits(fitB, "try-error")) {
-        fit_indicator = "CPLM"
+        fit_indicator <- "CPLM"
       } else if (inherits(fitA, "try-error") && inherits(fitB, "try-error")) {
-        fit_indicator = "CPLM"
+        fit_indicator <- "CPLM"
       } else {
         # If both converged, pick the best based on ZACP criteria
         if (!criteria_ZACP %in% c('AIC', 'BIC')) {
@@ -197,11 +197,11 @@ fit.ZACP <- function(features,
       # If only one model has failed the other becomes winner by default
       # If both have failed
       if (inherits(fitA, "try-error") && !inherits(fitB, "try-error")) {
-        fit_indicator = "ZICP"
+        fit_indicator <- "ZICP"
       } else if (!inherits(fitA, "try-error") && inherits(fitB, "try-error")) {
-        fit_indicator = "CPLM"
+        fit_indicator <- "CPLM"
       } else if (inherits(fitA, "try-error") && inherits(fitB, "try-error")) {
-        fit_indicator = "CPLM"
+        fit_indicator <- "CPLM"
       } else {
         # If both converged, pick the best based on ZACP criteria
         if (!criteria_ZACP %in% c('AIC', 'BIC')) {
@@ -243,7 +243,7 @@ fit.ZACP <- function(features,
   {
     logging::loginfo("Creating cluster of %s R processes", cores)
     cluster <- parallel::makeCluster(cores)
-    clusterExport(
+    parallel::clusterExport(
       cluster,
       c(
         "features",
@@ -317,7 +317,7 @@ fit.ZACP <- function(features,
         output$para <- summary_function(fit)
       }
       else{
-        logging::logwarn(paste("Fitting problem for feature", x, "returning NA"))
+        logging::logwarn("Fitting problem for feature %s, returning NA", x)
         output$para <-
           as.data.frame(matrix(NA,  nrow = ncol(metadata) - 1, ncol = 5)) # Everything except offset
         output$para$name <-

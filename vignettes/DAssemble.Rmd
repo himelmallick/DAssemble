@@ -1,0 +1,133 @@
+---
+title: "DAssemble: Ensemble Differential Analysis"
+author:
+  - name: Himel Mallick
+  - name: Ziyu Liu
+  - name: Nalin Arora
+package: DAssemble
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{DAssemble: Ensemble Differential Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Overview
+
+`DAssemble` implements an ensemble framework for differential-abundance and
+differential-expression analysis. Users can choose a single core model and
+optionally combine it with enhancer tests using the Cauchy Combination Test.
+
+The package accepts a `MultiAssayExperiment` object directly. When multiple
+experiments are present, use `assay_name` to select the experiment to analyze.
+For lower-level workflows, `features` can also be a data frame with samples in
+rows and features in columns, paired with a `metadata` data frame with matching
+sample row names. The exposure variable supplied through `expVar` must be
+binary.
+
+# Bulk RNA-seq Example
+
+The `airway` dataset from Bioconductor contains RNA-seq counts from airway
+smooth muscle cells treated with dexamethasone. The example below runs
+`DAssemble` with `DESeq2` as the core method and two enhancers.
+
+```{r airway-example}
+example_pkgs <- c("airway", "DESeq2", "MultiAssayExperiment", "S4Vectors")
+if (all(vapply(example_pkgs, requireNamespace, logical(1), quietly = TRUE))) {
+  data("airway", package = "airway")
+  counts <- SummarizedExperiment::assay(airway, "counts")
+  metadata <- as.data.frame(SummarizedExperiment::colData(airway))
+  metadata <- metadata[colnames(counts), , drop = FALSE]
+
+  mae <- MultiAssayExperiment::MultiAssayExperiment(
+    experiments = list(rnaseq = SummarizedExperiment::SummarizedExperiment(
+      assays = list(counts = counts)
+    )),
+    colData = S4Vectors::DataFrame(metadata)
+  )
+
+  res <- DAssemble::DAssemble(
+    features = mae,
+    assay_name = "rnaseq",
+    core_method = "DESeq2",
+    enhancers = c("WLX", "LR"),
+    expVar = "dex",
+    p_adj = "BH",
+    enhancer_norm = "tmm",
+    return_components = TRUE,
+    return_subensembles = TRUE
+  )
+
+  head(res$res)
+  names(res$components)
+}
+```
+
+This analysis combines DESeq2 p-values with Wilcoxon and logistic-regression
+enhancer p-values. The combined results are returned in `res$res`, and the
+per-method outputs are available in `res$components`.
+
+# Microbiome Example
+
+The `GlobalPatterns` dataset from `phyloseq` contains 16S rRNA profiles from
+environmental and host-associated microbiome samples. The example below compares
+fecal and soil samples using enhancer-only DAssemble with CLR normalization.
+
+```{r microbiome-example}
+example_pkgs <- c("phyloseq", "MultiAssayExperiment", "S4Vectors")
+if (all(vapply(example_pkgs, requireNamespace, logical(1), quietly = TRUE))) {
+  data("GlobalPatterns", package = "phyloseq")
+  gp <- GlobalPatterns
+
+  otu <- as(phyloseq::otu_table(gp), "matrix")
+  metadata <- as.data.frame(phyloseq::sample_data(gp))
+
+  keep <- metadata$SampleType %in% c("Feces", "Soil")
+  features <- as.data.frame(t(otu[, keep]))
+  metadata <- metadata[keep, , drop = FALSE]
+  metadata$group <- droplevels(factor(metadata$SampleType))
+  stopifnot(nlevels(metadata$group) == 2L)
+
+  mae <- MultiAssayExperiment::MultiAssayExperiment(
+    experiments = list(microbiome = SummarizedExperiment::SummarizedExperiment(
+      assays = list(counts = t(as.matrix(features)))
+    )),
+    colData = S4Vectors::DataFrame(metadata)
+  )
+
+  res <- DAssemble::DAssemble(
+    features = mae,
+    assay_name = "microbiome",
+    core_method = NULL,
+    enhancers = c("WLX", "LR", "KS"),
+    expVar = "group",
+    enhancer_norm = "clr",
+    return_components = TRUE,
+    return_subensembles = TRUE
+  )
+
+  head(res$res)
+  names(res$components)
+  head(res$ensembles)
+}
+```
+
+Because the core method is `NULL`, this example combines only enhancer tests.
+The `$ensembles` element reports the CCT results for the enhancer combinations
+when `return_subensembles = TRUE`.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

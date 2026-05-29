@@ -1,0 +1,7 @@
+^DAssemble[.]Rcheck$
+^DAssemble[.]BiocCheck$
+^DAssemble_[0-9.]+[.]tar[.]gz$
+^vignettes/DAssemble[.]BiocCheck$
+^vignettes/DAssemble_[0-9.]+[.]tar[.]gz$
+^[.]DS_Store$
+^vignettes/[.]DS_Store$
