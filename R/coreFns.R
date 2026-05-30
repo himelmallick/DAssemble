@@ -2,7 +2,7 @@
 # DAssemble Core DESeq2 #
 #########################
 
-DA_fit_core_DESeq2 <- function(features, metadata, expVar) {
+DA_fit_core_DESeq2 <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -15,7 +15,7 @@ DA_fit_core_DESeq2 <- function(features, metadata, expVar) {
   # Standard DESeq2 pipeline #
   ############################
   
-  design <- as.formula(paste("~", expVar))
+  design <- as.formula(paste("~", build_rhs(expVar, coVars)))
   x <- DESeq2::DESeqDataSetFromMatrix(countData = t(as.matrix(features)), colData = metadata, design = design)
   gm_mean = function(x, na.rm=TRUE){
     exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
@@ -40,7 +40,7 @@ DA_fit_core_DESeq2 <- function(features, metadata, expVar) {
 # DAssemble Core edgeR #
 ########################
 
-DA_fit_core_edgeR <- function(features, metadata, expVar) {
+DA_fit_core_edgeR <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -55,13 +55,21 @@ DA_fit_core_edgeR <- function(features, metadata, expVar) {
   
   d <- DGEList(counts = t(features))
   d <- suppressWarnings(edgeR::calcNormFactors(d, method='TMM'))
-  design <- model.matrix(as.formula(paste("~", expVar)), metadata)
+  design <- build_design_matrix(metadata, expVar, coVars)
   # d <- estimateDisp(d, design) -> This step is equivalent to the next three steps
   d <- estimateGLMCommonDisp(d, design)
   d <- estimateGLMTrendedDisp(d, design)
   d <- estimateGLMTagwiseDisp(d, design)
+  
   fit <- glmFit(d, design)
-  fit<- glmLRT(fit, 2)
+  
+  coef_name <- get_exp_coef_name(metadata, expVar, coVars)
+  coef_idx  <- match(coef_name, colnames(design))
+  if (is.na(coef_idx)) {
+    stop("Could not match the exposure coefficient in edgeR design matrix.")
+  }
+  
+  fit <- glmLRT(fit, coef = coef_idx)
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -80,7 +88,7 @@ DA_fit_core_edgeR <- function(features, metadata, expVar) {
 # DAssemble Core limmaVOOM  #
 #############################
 
-DA_fit_core_limmaVOOM <- function(features, metadata, expVar) {
+DA_fit_core_limmaVOOM <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -94,7 +102,7 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar) {
   # Standard limmaVOOM pipeline #
   ###############################
   
-  design <- model.matrix(as.formula(paste("~", expVar)), metadata)
+  design <- build_design_matrix(metadata, expVar, coVars)
   x<-t(as.matrix(features)+1) # Convert to matrix, round up to nearest integer, and transpose
   y <- voom(x,design,plot=FALSE)
   fit <- limma::lmFit(y,design)
@@ -105,7 +113,12 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar) {
   #####################################################
   
   feature<-rownames(fit$coefficients)
-  pval_core<-fit$p.value[,-1]
+  coef_name <- get_exp_coef_name(metadata, expVar, coVars)
+  if (!coef_name %in% colnames(fit$p.value)) {
+    stop("Could not find the exposure coefficient in limma output.")
+  }
+  pval_core <- fit$p.value[, coef_name]
+  
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
   df<-dplyr::select(df, c('feature', 'metadata'), everything())
@@ -117,7 +130,7 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar) {
 # DAssemble Core metagenomeSeq    #
 ###################################
 
-DA_fit_core_metagenomeSeq <- function(features, metadata, expVar) {
+DA_fit_core_metagenomeSeq <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -130,7 +143,7 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar) {
   # Standard metagenomeSeq pipeline #
   ###################################
   
-  design <- model.matrix(as.formula(paste("~", expVar)), metadata)
+  design <- build_design_matrix(metadata, expVar, coVars)
   count_table <- t(features) 
   mgsdata <- newMRexperiment(counts = count_table)
   mgsp <- cumNormStat(mgsdata)
@@ -142,7 +155,12 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar) {
   #####################################################
   
   feature<-rownames(fit@fit$coefficients)
-  pval_core<-fit@eb$p.value[,!colnames(fit@fit$coefficients) %in% c("(Intercept)", "scalingFactor")]
+  coef_name <- get_exp_coef_name(metadata, expVar, coVars)
+  if (!coef_name %in% colnames(fit@eb$p.value)) {
+    stop("Could not find the exposure coefficient in metagenomeSeq output.")
+  }
+  pval_core <- fit@eb$p.value[, coef_name]
+  
   df<-cbind.data.frame(feature, pval_core)
   df$metadata<- expVar
   df<-dplyr::select(df, c('feature', 'metadata'), everything())
@@ -154,7 +172,7 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar) {
 # DAssemble Core MAST  #
 ########################
 
-DA_fit_core_MAST <- function(features, metadata, expVar) {
+DA_fit_core_MAST <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -169,16 +187,44 @@ DA_fit_core_MAST <- function(features, metadata, expVar) {
   
   countData <- t(features)
   expr <- log2(edgeR::cpm(countData)+1)
+  
   sca <- MAST::FromMatrix(exprsArray = expr)
-  cdr2 <-colSums(assay(sca)>0)
-  colData(sca)$cngeneson <- scale(cdr2)
+  cdr2 <- colSums(assay(sca) > 0)
+  
+  colData(sca)$cngeneson <- as.numeric(scale(cdr2))
   colData(sca)$condition <- droplevels(factor(metadata[[expVar]]))
-  zlmCond <- zlm(~condition + cngeneson, sca)
-  test.cond <- colnames(zlmCond@coefC)[2]
+  
+  if (!is.null(coVars) && length(coVars) > 0L) {
+    for (cv in coVars) {
+      colData(sca)[[cv]] <- metadata[[cv]]
+    }
+  }
+  
+  cov_terms <- if (!is.null(coVars) && length(coVars) > 0L) {
+    paste("+", paste(coVars, collapse = " + "))
+  } else {
+    ""
+  }
+  
+  zlm_formula <- as.formula(paste("~ condition + cngeneson", cov_terms))
+  zlmCond <- MAST::zlm(formula = zlm_formula, sca = sca)
+  
+  test.cond <- grep("^condition", colnames(zlmCond@coefC), value = TRUE)[1]
+  if (is.na(test.cond)) {
+    stop("Could not identify the exposure coefficient in MAST.")
+  }
+  
   summaryCond <- summary(zlmCond, doLRT = test.cond)
   summaryDt <- summaryCond$datatable
-  fcHurdle <- merge(summaryDt[contrast==test.cond & component=='H',.(primerid, `Pr(>Chisq)`)], #hurdle P values
-                    summaryDt[contrast==test.cond & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
+  
+  fcHurdle <- merge(
+    summaryDt[contrast == test.cond & component == "H",
+              .(primerid, `Pr(>Chisq)`)],
+    summaryDt[contrast == test.cond & component == "logFC",
+              .(primerid, coef, ci.hi, ci.lo)],
+    by = "primerid"
+  )
+  
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -197,7 +243,7 @@ DA_fit_core_MAST <- function(features, metadata, expVar) {
 # DAssemble Core dearseq   #
 ############################
 
-DA_fit_core_dearseq <- function(features, metadata, expVar) {
+DA_fit_core_dearseq <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -212,7 +258,11 @@ DA_fit_core_dearseq <- function(features, metadata, expVar) {
   
   se_raw <- SummarizedExperiment(assays = as.matrix(t(features)), colData = metadata)
   which_test <- if (nrow(metadata) <= 20) "permutation" else "asymptotic"
-  fit <- dearseq::dear_seq(object = se_raw, variables2test = expVar,
+  
+  # Build covariate matrix if coVars provided
+  cov_mat <- build_covariate_matrix(metadata, coVars)
+  
+  fit <- dearseq::dear_seq(object = se_raw, variables2test = expVar, covariates = cov_mat,
                            which_test = which_test, preprocessed = FALSE,
                            progressbar = FALSE, parallel_comp = FALSE, 
                            which_weights = "loclin")
@@ -233,7 +283,7 @@ DA_fit_core_dearseq <- function(features, metadata, expVar) {
 # DAssemble Core Robseq #
 #########################
 
-DA_fit_core_Robseq <- function(features, metadata, expVar) {
+DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -249,7 +299,7 @@ DA_fit_core_Robseq <- function(features, metadata, expVar) {
   countMat <- t(as.matrix(features))
   meta_rob <- metadata
   meta_rob$Exposure <- metadata[[expVar]]
-  fit <- Robseq::robust.dge(features = countMat, metadata = meta_rob)
+  fit <- Robseq::robust.dge(features = countMat, metadata = meta_rob, coVars = coVars)
   res <- as.data.frame(fit$res)
   
   #####################################################
@@ -268,7 +318,7 @@ DA_fit_core_Robseq <- function(features, metadata, expVar) {
 # DAssemble Core MaAsLin2 #
 ###########################
 
-DA_fit_core_Maaslin2 <- function(features, metadata, expVar) {
+DA_fit_core_Maaslin2 <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -286,7 +336,7 @@ DA_fit_core_Maaslin2 <- function(features, metadata, expVar) {
   fit <- Maaslin2::Maaslin2(features, 
                             metadata, 
                             output = tmp, 
-                            fixed_effects = expVar,
+                            fixed_effects  = c(expVar, coVars),
                             min_abundance = -Inf, # No additional filtering
                             save_scatter = FALSE, 
                             save_models = FALSE,
@@ -301,9 +351,11 @@ DA_fit_core_Maaslin2 <- function(features, metadata, expVar) {
   #####################################################
   
   res <- res[res$metadata == expVar, , drop = FALSE]
-  feature<-res$feature
+  feature   <- res$feature
+  coef_core <- res$coef
   pval_core <- res$pval
-  df<-cbind.data.frame(feature, pval_core)
+  df <- cbind.data.frame(feature, coef_core, pval_core)
+  
   df$metadata<- expVar
   df<-dplyr::select(df, c('feature', 'metadata'), everything())
   return(df)
@@ -313,7 +365,7 @@ DA_fit_core_Maaslin2 <- function(features, metadata, expVar) {
 # DAssemble Core MaAsLin3 #
 ###########################
 
-DA_fit_core_Maaslin3 <- function(features, metadata, expVar) {
+DA_fit_core_Maaslin3 <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -332,7 +384,7 @@ DA_fit_core_Maaslin3 <- function(features, metadata, expVar) {
     features,
     metadata,
     output = tmp,
-    fixed_effects = expVar,
+    fixed_effects  = c(expVar, coVars),
     min_prevalence = -Inf, # No additional filtering
     median_comparison_abundance = TRUE, 
     median_comparison_prevalence = TRUE,
@@ -362,7 +414,7 @@ DA_fit_core_Maaslin3 <- function(features, metadata, expVar) {
 # DAssemble Core ANCOMBC2 #
 ###########################
 
-DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar) {
+DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -377,9 +429,12 @@ DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar) {
   
   otu_data<-as.data.frame(t(features))
   metadata$sampleID<-rownames(metadata) # ANCOMBC2 does not work with single-column metadata
+  
+  fix_formula <- build_rhs(expVar, coVars)
+  
   fit <- ANCOMBC::ancombc2(data = otu_data, 
                            meta_data = metadata, 
-                           fix_formula = expVar,
+                           fix_formula = fix_formula,
                            prv_cut = 0, # No additional filtering
                            alpha = 1)
   
@@ -401,7 +456,7 @@ DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar) {
 # DAssemble Core ALDEx2 #
 #########################
 
-DA_fit_core_ALDEx2 <- function(features, metadata, expVar) {
+DA_fit_core_ALDEx2 <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -415,28 +470,48 @@ DA_fit_core_ALDEx2 <- function(features, metadata, expVar) {
   ############################
   
   group <- droplevels(factor(metadata[[expVar]]))
-  ald <- ALDEx2::aldex(t(as.matrix(features)), conditions = as.character(group))
-  res <- as.data.frame(ald)
+  
+  if (is.null(coVars)) {
+    
+    # No covariates: use the standard aldex() convenience wrapper
+    ald       <- ALDEx2::aldex(t(as.matrix(features)), conditions = as.character(group))
+    feature   <- rownames(ald)
+    pval_core <- ald$we.ep
+    
+  } else {
+    
+    # Covariates present: use aldex.clr + aldex.glm
+    clr_obj <- ALDEx2::aldex.clr(t(as.matrix(features)),
+                                 conds = as.character(group))
+    mm      <- model.matrix(as.formula(paste("~", build_rhs(expVar, coVars))), metadata)
+    glm_res <- ALDEx2::aldex.glm(clr_obj, mm)
+    
+    # Extract p-value column corresponding to expVar
+    p_col   <- grep(paste0("^model\\.", expVar, ".*Pr"), colnames(glm_res), value = TRUE)[1]
+    if (is.na(p_col))
+      stop("Could not find a p-value column for expVar '", expVar, "' in aldex.glm output.")
+    
+    feature   <- rownames(glm_res)
+    pval_core <- glm_res[[p_col]]
+  }
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
   #####################################################
   
-  feature <- rownames(res)
-  pval_core <- res$we.ep
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
+  df <- cbind.data.frame(feature, pval_core)
+  df$metadata <- expVar
+  df <- dplyr::select(df, c('feature', 'metadata'), everything())
   return(df)
-  
 }
+
 
 
 ########################
 # DAssemble Core LinDA #
 ########################
 
-DA_fit_core_LinDA <- function(features, metadata, expVar) {
+DA_fit_core_LinDA <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -450,7 +525,7 @@ DA_fit_core_LinDA <- function(features, metadata, expVar) {
   ###########################
   
   otu <- t(as.matrix(features))
-  out <- LinDA::linda(otu.tab = otu, meta = metadata, formula = paste("~", expVar))
+  out <- LinDA::linda(otu.tab = otu, meta = metadata, formula = paste("~", build_rhs(expVar, coVars)))
   res <- as.data.frame(out$output[[1]])
   
   #####################################################
@@ -471,7 +546,7 @@ DA_fit_core_LinDA <- function(features, metadata, expVar) {
 # DAssemble Core LOCOM #
 ########################
 
-DA_fit_core_LOCOM <- function(features, metadata, expVar) {
+DA_fit_core_LOCOM <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -487,7 +562,10 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar) {
   otu <- as.matrix(features)
   Y <- metadata[[expVar]]
   if (is.factor(Y)) Y <- as.numeric(Y) - 1
-  fit <- LOCOM::locom(otu.table = otu, Y = Y, seed = 1234, filter.thresh = 0) # No additional filtering
+  
+  C_mat <- build_covariate_matrix(metadata, coVars)
+  
+  fit <- LOCOM::locom(otu.table = otu, Y = Y, C = C_mat, seed = 1234, filter.thresh = 0) # No additional filtering
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -506,7 +584,7 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar) {
 # DAssemble Core Tweedieverse #
 ##############################
 
-DA_fit_core_Tweedieverse <- function(features, metadata, expVar) {
+DA_fit_core_Tweedieverse <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Package sanity check #
@@ -526,7 +604,7 @@ DA_fit_core_Tweedieverse <- function(features, metadata, expVar) {
                       output = tmp,
                       max_significance = 1,
                       abd_threshold = -Inf, # No additional filtering
-                      fixed_effects = expVar,
+                      fixed_effects  = c(expVar, coVars),
                       adjust_offset = TRUE, # Expects a variable named scale_factor
                       median_comparison = FALSE,
                       median_subtraction = FALSE,

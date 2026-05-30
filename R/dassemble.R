@@ -12,6 +12,7 @@ DAssemble <- function(features,
                       core_method = NULL,
                       enhancers = NULL,
                       expVar = "group",
+                      coVars = NULL,
                       p_adj = "BY",
                       enhancer_norm = "TSS",
                       return_components   = TRUE,
@@ -89,6 +90,8 @@ DAssemble <- function(features,
     stop("`features` and `metadata` must have identical rownames.")
   }
   
+  feature_key_map <- make_feature_join_map(features)
+  
   ########################
   # 3) Check expVar type #
   ########################
@@ -103,6 +106,22 @@ DAssemble <- function(features,
     stop("expVar must be binary.")
   }
   metadata[[expVar]] <- droplevels(grp)
+  
+  
+  if (!is.null(coVars)) {
+    coVars <- unique(coVars)
+    bad <- setdiff(coVars, colnames(metadata))
+    if (length(bad))
+      stop("coVars not found in metadata: ", paste(bad, collapse = ", "))
+    if (expVar %in% coVars)
+      stop("expVar cannot also appear in coVars.")
+  }
+  
+  if (!is.null(coVars) && length(intersect(enh_list, c("WLX", "KS"))) > 0L) {
+    warning(
+      "WLX and KS ignore coVars, so any ensemble including them is only partially covariate-adjusted."
+    )
+  }
   
   ###############################################
   # 4) Tweedieverse: optional special norm      #
@@ -132,8 +151,15 @@ DAssemble <- function(features,
     res_core <- DA_do_call(core_fun, list(
       features = features,
       metadata = metadata,
-      expVar   = expVar
+      expVar   = expVar,
+      coVars   = coVars
     ))
+    
+    res_core <- normalize_result_features(
+      res_core,
+      feature_key_map,
+      label = paste0("core method '", core_method, "'")
+    )
     
     if (!"feature" %in% names(res_core)) {
       stop("Core result must contain a 'feature' column.")
@@ -180,7 +206,13 @@ DAssemble <- function(features,
         feat_use <- feat_norm_for_LR
       }
       
-      tmp <- do.call(fun, list(feat_use$features, feat_use$metadata, expVar))
+      tmp <- do.call(fun, list(feat_use$features, feat_use$metadata, expVar, coVars))
+      
+      tmp <- normalize_result_features(
+        tmp,
+        feature_key_map,
+        label = paste0("enhancer '", e, "'")
+      )
       
       if (!"feature" %in% names(tmp)) {
         stop("Enhancer ", e, " result must contain a 'feature' column.")
