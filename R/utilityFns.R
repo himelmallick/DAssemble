@@ -1,3 +1,81 @@
+
+build_rhs <- function(expVar, coVars = NULL) {
+  if (!is.null(coVars) && length(coVars) > 0L)
+    paste(c(expVar, coVars), collapse = " + ")
+  else
+    expVar
+}
+
+make_feature_join_map <- function(features) {
+  orig_feature_names <- colnames(features)
+  join_keys <- make.names(orig_feature_names, unique = FALSE)
+  
+  if (anyDuplicated(join_keys)) {
+    dup_keys <- unique(join_keys[duplicated(join_keys)])
+    stop(
+      "Feature names become non-unique after canonicalization used for joining. ",
+      "Please pre-clean feature names. Problematic canonical names: ",
+      paste(head(dup_keys, 10), collapse = ", ")
+    )
+  }
+  
+  stats::setNames(orig_feature_names, join_keys)
+}
+
+normalize_result_features <- function(df, feature_key_map, label = "result") {
+  if (!"feature" %in% names(df)) {
+    stop(label, " must contain a 'feature' column.")
+  }
+  
+  join_keys <- make.names(df$feature, unique = FALSE)
+  mapped <- unname(feature_key_map[join_keys])
+  
+  if (anyNA(mapped)) {
+    bad <- unique(df$feature[is.na(mapped)])
+    stop(
+      "Failed to map some feature names returned by ", label, 
+      " back to the original feature names. Examples: ",
+      paste(head(bad, 10), collapse = ", ")
+    )
+  }
+  
+  df$feature <- mapped
+  df
+}
+
+build_design_matrix <- function(metadata, expVar, coVars = NULL) {
+  stats::model.matrix(
+    stats::as.formula(paste("~", build_rhs(expVar, coVars))),
+    data = metadata
+  )
+}
+
+get_exp_coef_name <- function(metadata, expVar, coVars = NULL) {
+  mm <- build_design_matrix(metadata, expVar, coVars)
+  if (ncol(mm) < 2L) {
+    stop("Could not identify the exposure coefficient.")
+  }
+  colnames(mm)[2L]
+}
+
+build_covariate_matrix <- function(metadata, coVars = NULL) {
+  if (is.null(coVars) || length(coVars) == 0L) {
+    return(NULL)
+  }
+  
+  mm <- stats::model.matrix(
+    stats::as.formula(paste("~", paste(coVars, collapse = " + "))),
+    data = metadata
+  )
+  
+  mm <- mm[, colnames(mm) != "(Intercept)", drop = FALSE]
+  if (ncol(mm) == 0L) {
+    return(NULL)
+  }
+  mm
+}
+
+
 ###########################
 # DAssemble Normalization #
 ###########################

@@ -2,7 +2,7 @@
 # DAssemble Enhancer Logistic Regression (LR) #
 ###############################################
 
-DA_fit_enhancer_LR <- function(features, metadata, expVar) {
+DA_fit_enhancer_LR <- function(features, metadata, expVar, coVars = NULL) {
   
   ########################
   # Standard LR pipeline #
@@ -17,7 +17,8 @@ DA_fit_enhancer_LR <- function(features, metadata, expVar) {
   log_offset <- log(offset_raw)
   
   # Build formula with expVar only
-  formula <- as.formula(paste("expr ~", expVar))
+  formula <- as.formula(paste("expr ~", build_rhs(expVar, coVars)))
+  coef_name <- get_exp_coef_name(metadata, expVar, coVars)
   
   ##################
   # Per-feature LR #
@@ -26,13 +27,20 @@ DA_fit_enhancer_LR <- function(features, metadata, expVar) {
   pval_LR <- rep(NA_real_, ncol(features))
   names(pval_LR) <- colnames(features)
   
+  coef_LR <- rep(NA_real_, ncol(features))
+  names(coef_LR) <- colnames(features)
+  
   for (j in seq_len(ncol(features))) {
     expr <- as.integer(features[, j] > 0)
     df   <- cbind(metadata, expr = expr)
-    fit <- try(glm(formula = formula, family = binomial(), data = df, offset  = log_offset), silent = TRUE)
-    
+    fit  <- try(glm(formula = formula, family = binomial(),
+                    data = df, offset = log_offset), silent = TRUE)
     if (!inherits(fit, "try-error")) {
-      pval_LR[j] <- coef(summary(fit))[2, 4]   # p-value for expVar
+      sm <- coef(summary(fit))
+      if (coef_name %in% rownames(sm)) {
+        coef_LR[j] <- sm[coef_name, 1]
+        pval_LR[j] <- sm[coef_name, 4]
+      }
     }
   }
   
@@ -41,7 +49,7 @@ DA_fit_enhancer_LR <- function(features, metadata, expVar) {
   ###########################################
   
   feature<-names(pval_LR)
-  df<-cbind.data.frame(feature, pval_LR)
+  df <- cbind.data.frame(feature, coef_LR, pval_LR)
   df$metadata<- expVar
   df<-dplyr::select(df, c('feature', 'metadata'), everything())
   return(df)
@@ -52,11 +60,12 @@ DA_fit_enhancer_LR <- function(features, metadata, expVar) {
 # DAssemble Enhancer Kolmogorov–Smirnov (KS) #
 ##############################################
 
-DA_fit_enhancer_KS <- function(features, metadata, expVar) {
+DA_fit_enhancer_KS <- function(features, metadata, expVar, coVars = NULL) {
 
   ########################
   # Standard KS pipeline #
   ########################
+  if (!is.null(coVars)) warning("KS is a nonparametric two-group test; coVars are ignored.")
   
   group <- metadata[[expVar]]
   g1 <- which(group == levels(group)[1])
@@ -95,12 +104,13 @@ DA_fit_enhancer_KS <- function(features, metadata, expVar) {
 # DAssemble Enhancer Wilcoxon Rank Sum (WLX) #
 ##############################################
 
-DA_fit_enhancer_WLX <- function(features, metadata, expVar) {
+DA_fit_enhancer_WLX <- function(features, metadata, expVar, coVars = NULL) {
  
   #########################
   # Standard WLX pipeline #
   #########################
-  
+  if (!is.null(coVars)) warning("WLX is a nonparametric two-group test; coVars are ignored.")
+
   group <- metadata[[expVar]]
   g1 <- which(group == levels(group)[1])
   g2 <- which(group == levels(group)[2])
@@ -116,7 +126,7 @@ DA_fit_enhancer_WLX <- function(features, metadata, expVar) {
     x2 <- features[g2, j]
     tst <- try(stats::wilcox.test(x1, x2), silent = TRUE)
     if (inherits(tst, "try-error")) {
-      pvals[j] <- NA_real_
+      pval_WLX[j] <- NA_real_
     } else {
       pval_WLX[j] <- tst$p.value
     }
