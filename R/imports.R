@@ -1,6 +1,6 @@
 #' @importFrom dplyr everything
 #' @importFrom stats as.formula binomial coef glm model.matrix na.exclude na.pass p.adjust pcauchy plogis sd update
-#' @importFrom utils capture.output combn write.table
+#' @importFrom utils capture.output combn head write.table
 NULL
 
 utils::globalVariables(c(

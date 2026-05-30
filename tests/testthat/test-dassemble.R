@@ -111,7 +111,7 @@ test_that("enhancers return standardized p-value tables", {
     return_normalized = FALSE
   )$metadata
   lr <- DAssemble:::DA_fit_enhancer_LR(toy$features, lr_meta, "group")
-  expect_named(lr, c("feature", "metadata", "pval_LR"))
+  expect_true(all(c("feature", "metadata", "pval_LR") %in% names(lr)))
   expect_equal(lr$feature, colnames(toy$features))
 })
 

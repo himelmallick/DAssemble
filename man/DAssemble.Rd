@@ -10,6 +10,7 @@ DAssemble(
   core_method = NULL,
   enhancers = NULL,
   expVar = "group",
+  coVars = NULL,
   assay_name = NULL,
   p_adj = "BY",
   enhancer_norm = "TSS",
@@ -33,6 +34,9 @@ in rows and features in columns.}
 
 \item{expVar}{Character scalar naming the binary exposure variable in
 \code{metadata} or \code{colData(features)}.}
+
+\item{coVars}{Optional character vector naming covariates to include in
+covariate-aware core methods and logistic-regression enhancers.}
 
 \item{assay_name}{Name of the assay/experiment to use when \code{features} is a
 \code{MultiAssayExperiment}. Required when the object contains multiple

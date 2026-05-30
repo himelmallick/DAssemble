@@ -20,6 +20,8 @@
 #'   `"KS"`.
 #' @param expVar Character scalar naming the binary exposure variable in
 #'   `metadata` or `colData(features)`.
+#' @param coVars Optional character vector naming covariates to include in
+#'   covariate-aware core methods and logistic-regression enhancers.
 #' @param p_adj Multiple-testing correction method passed to [stats::p.adjust].
 #' @param enhancer_norm Normalization method for enhancer tests. One of
 #'   `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`.
@@ -59,6 +61,7 @@ DAssemble <- function(features,
                       core_method = NULL,
                       enhancers = NULL,
                       expVar = "group",
+                      coVars = NULL,
                       assay_name = NULL,
                       p_adj = "BY",
                       enhancer_norm = "TSS",
@@ -194,7 +197,7 @@ DAssemble <- function(features,
     coVars <- unique(coVars)
     bad <- setdiff(coVars, colnames(metadata))
     if (length(bad))
-      stop("coVars not found in metadata: ", paste(bad, collapse = ", "))
+      stop("coVars not found in metadata: ", toString(bad))
     if (expVar %in% coVars)
       stop("expVar cannot also appear in coVars.")
   }
