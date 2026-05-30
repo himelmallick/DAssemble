@@ -6,15 +6,53 @@
 \usage{
 DAssemble(
   features,
-  metadata,
+  metadata = NULL,
   core_method = NULL,
   enhancers = NULL,
   expVar = "group",
+  assay_name = NULL,
   p_adj = "BY",
   enhancer_norm = "TSS",
   return_components = TRUE,
   return_subensembles = FALSE
 )
+}
+\arguments{
+\item{features}{A \code{MultiAssayExperiment} object, or a data.frame with samples
+in rows and features in columns.}
+
+\item{metadata}{A data.frame with sample metadata. Leave as \code{NULL} when
+\code{features} is a \code{MultiAssayExperiment}; sample metadata is then taken from
+\code{colData(features)}.}
+
+\item{core_method}{Character scalar naming the core method to run, or \code{NULL}
+/ \code{"none"} for enhancer-only analysis.}
+
+\item{enhancers}{Character vector containing any of \code{"WLX"}, \code{"LR"}, and
+\code{"KS"}.}
+
+\item{expVar}{Character scalar naming the binary exposure variable in
+\code{metadata} or \code{colData(features)}.}
+
+\item{assay_name}{Name of the assay/experiment to use when \code{features} is a
+\code{MultiAssayExperiment}. Required when the object contains multiple
+experiments.}
+
+\item{p_adj}{Multiple-testing correction method passed to \link[stats:p.adjust]{stats::p.adjust}.}
+
+\item{enhancer_norm}{Normalization method for enhancer tests. One of
+\code{"TSS"}, \code{"CLR"}, \code{"TMM"}, or \code{"SCRAN"}.}
+
+\item{return_components}{Logical; if \code{TRUE}, return per-method component
+result tables.}
+
+\item{return_subensembles}{Logical; if \code{TRUE}, return CCT sub-ensemble
+results for all available method subsets.}
+}
+\value{
+A list containing combined results in \code{res}, the analyzed feature
+table in \code{features}, elapsed time in \code{Time.min}, and optionally
+\code{components} and \code{ensembles}.
 }
 \description{
 The \code{DAssemble} function implements an ensemble strategy for differential
@@ -22,4 +60,26 @@ analysis. Users can select a single \emph{core} model and optionally augment it
 with up to three \emph{enhancer} models. Enhancers are simple, often nonparametric
 tests that provide complementary evidence. P-values from the core and
 enhancer models are combined using the Cauchy Combination Test (CCT).
+}
+\examples{
+features <- data.frame(
+  taxon1 = c(12, 9, 11, 8, 25, 21, 23, 26),
+  taxon2 = c(30, 28, 31, 29, 10, 12, 11, 9),
+  taxon3 = c(5, 6, 4, 7, 5, 4, 6, 5),
+  taxon4 = c(8, 7, 9, 6, 12, 13, 11, 14),
+  row.names = paste0("sample", seq_len(8))
+)
+metadata <- data.frame(
+  group = factor(rep(c("control", "case"), each = 4)),
+  row.names = rownames(features)
+)
+result <- DAssemble(
+  features = features,
+  metadata = metadata,
+  core_method = NULL,
+  enhancers = "WLX",
+  expVar = "group"
+)
+head(result$res)
+
 }

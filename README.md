@@ -25,9 +25,9 @@ library(DAssemble)
 
 ### 2. Install and load all method dependencies
 
-DAssemble depends on several packages from **CRAN**, **Bioconductor**, and **GitHub**
-for its core DA methods and enhancers. The script below will automatically
-install any missing packages and then load them.
+DAssemble depends on packages from **CRAN** and **Bioconductor** for its
+core DA methods and enhancers. The script below will automatically install
+any missing packages and then load them.
 
 ```r
 ## ===========================================
@@ -37,26 +37,16 @@ install any missing packages and then load them.
 # All required packages
 req_pkgs <- c(
   "MAST", "DESeq2", "edgeR", "limma", "metagenomeSeq",
-  "dearseq", "SummarizedExperiment", "ALDEx2", "LinDA",
-  "LOCOM", "Maaslin2", "maaslin3", "Tweedieverse",
-  "Robseq", "ANCOMBC", "TreeSummarizedExperiment", "S4Vectors"
-)
-
-# GitHub-only packages
-github_pkgs <- c(
-  LinDA        = "zhouhj1994/LinDA",
-  LOCOM        = "yijuanhu/LOCOM",
-  Tweedieverse = "himelmallick/Tweedieverse",
-  maaslin3     = "biobakery/maaslin3",
-  Robseq       = "schatterjee30/Robseq"
+  "dearseq", "SummarizedExperiment", "ALDEx2", "MicrobiomeStat",
+  "LOCOM2", "Maaslin2", "maaslin3", "MultiAssayExperiment",
+  "cplm", "dfadjust", "glmmTMB",
+  "logging", "MASS", "pbapply", "preprocessCore",
+  "ANCOMBC", "TreeSummarizedExperiment", "S4Vectors"
 )
 
 # Install required managers
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
-
-if (!requireNamespace("remotes", quietly = TRUE))
-  install.packages("remotes")
 
 # Install + load loop
 for (pkg in req_pkgs) {
@@ -65,18 +55,12 @@ for (pkg in req_pkgs) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     message("Installing missing package: ", pkg)
 
-    if (pkg %in% names(github_pkgs)) {
-      repo <- github_pkgs[[pkg]]
-      message("  -> Installing from GitHub: ", repo)
-      remotes::install_github(repo, dependencies = TRUE)
-    } else {
-      tryCatch({
-        install.packages(pkg)
-      }, error = function(e) {
-        message("  -> CRAN failed, installing via Bioconductor: ", pkg)
-        BiocManager::install(pkg, ask = FALSE)
-      })
-    }
+    tryCatch({
+      install.packages(pkg)
+    }, error = function(e) {
+      message("  -> CRAN failed, installing via Bioconductor: ", pkg)
+      BiocManager::install(pkg, ask = FALSE)
+    })
   }
 
   # Load package
@@ -105,12 +89,12 @@ cat("All required packages installed and loaded successfully.\n")
 | MAST        | MAST                            |
 | dearseq     | dearseq + SummarizedExperiment  |
 | ALDEx2      | ALDEx2                          |
-| LinDA       | LinDA (GitHub)                  |
-| LOCOM      | LOCOM (GitHub)                  |
+| LinDA       | MicrobiomeStat                  |
+| LOCOM      | LOCOM2                          |
 | Maaslin2    | Maaslin2                        |
-| Maaslin3    | maaslin3 (GitHub)               |
-| Tweedieverse | Tweedieverse (GitHub)          |
-| Robseq      | Robseq (GitHub)                 |
+| Maaslin3    | maaslin3                        |
+| Tweedieverse | Internal DAssemble implementation using cplm/glmmTMB |
+| Robseq      | Internal DAssemble implementation using MASS/dfadjust |
 | ANCOM-BC2   | ANCOMBC + TreeSummarizedExperiment + S4Vectors |
 
 
@@ -190,30 +174,29 @@ The main entry point is:
 
 ```r
 DAssemble(
-  X,
-  expVar,
-  coVars        = NULL,
-  core_method   = "DESeq2",
-  enhancers     = c("WLX", "KS"),
-  domain        = c("bulkrnaseq", "singlecell", "microbiome", "none"),
-  p_adj         = "BH",
-  orientation   = c("features_by_samples", "samples_by_features", "auto"),
+  features,
+  metadata      = NULL,
+  core_method   = NULL,
+  enhancers     = NULL,
+  expVar        = "group",
+  assay_name    = NULL,
+  p_adj         = "BY",
+  enhancer_norm = "TSS",
   return_components   = FALSE,
-  return_subensembles = FALSE,
-  ...
+  return_subensembles = FALSE
 )
 ```
 
 Key arguments:
 
-- `X` – feature matrix of counts / abundances  
+- `features` – a `MultiAssayExperiment`, or a data frame with samples in rows and features in columns
+- `metadata` – sample metadata data frame; leave as `NULL` when `features` is a `MultiAssayExperiment`
 - `expVar` – name (or column) of the primary exposure variable (binary, 2 levels)
-- `coVars` – optional covariates (used by some core methods)
+- `assay_name` – experiment name to use when `features` is a `MultiAssayExperiment`; required when multiple experiments are present
 - `core_method` – one of the supported core method names (see above), or `NULL` / `"none"` to run an **enhancer-only** analysis
 - `enhancers` – `NULL` or a subset of `c("WLX", "LR", "KS")`
-- `domain` – `"bulkrnaseq"`, `"singlecell"`, `"microbiome"`, or `"none"`; **used only by the enhancers** to choose modality-specific normalization
 - `p_adj` – multiple testing correction method (passed to `p.adjust`)
-- `orientation` – `"features_by_samples"`, `"samples_by_features"`, or `"auto"`
+- `enhancer_norm` – normalization used by enhancers, one of `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`
 - `return_components` – if `TRUE`, return per-method results in `$components`
 - `return_subensembles` – if `TRUE`, compute CCT **sub-ensembles** and return them in `$ensembles`
 
@@ -270,17 +253,26 @@ To run DAssemble on this dataset using the DESeq2 core and two enhancers (Wilcox
 ```r
 library(DESeq2)
 library(airway)
+library(MultiAssayExperiment)
 library(DAssemble)
 
 # load counts and metadata
 data("airway")
 counts   <- assay(airway, "counts")
 metadata <- as.data.frame(colData(airway))
+metadata <- metadata[colnames(counts), , drop = FALSE]
+
+mae <- MultiAssayExperiment(
+  experiments = list(rnaseq = SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = counts)
+  )),
+  colData = S4Vectors::DataFrame(metadata)
+)
 
 # the exposure variable is dex (treated vs untreated)
 res <- DAssemble(
-  features    = t(counts),
-  metadata    = metadata,
+  features    = mae,
+  assay_name  = "rnaseq",
   core_method = "DESeq2",
   enhancers   = c("WLX", "LR"),
   expVar      = "dex",
@@ -315,6 +307,7 @@ extracted from `GlobalPatterns`:
 
 ```r
 library(phyloseq)
+library(MultiAssayExperiment)
 library(DAssemble)
 
 # load Global Patterns as a phyloseq object
@@ -325,15 +318,23 @@ gp <- GlobalPatterns
 otu  <- as(otu_table(gp), "matrix")
 meta <- as.data.frame(sample_data(gp))
 
-# here we compare human stool samples against soil samples as an example
-keep <- meta$SampleType %in% c("Stool", "Soil")
+# here we compare human fecal samples against soil samples as an example
+keep <- meta$SampleType %in% c("Feces", "Soil")
 X    <- t(otu[, keep])
 meta <- meta[keep, , drop = FALSE]
 meta$group <- droplevels(factor(meta$SampleType))
+stopifnot(nlevels(meta$group) == 2L)
+
+mae <- MultiAssayExperiment(
+  experiments = list(microbiome = SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = t(as.matrix(X)))
+  )),
+  colData = S4Vectors::DataFrame(meta)
+)
 
 res <- DAssemble(
-  features    = X,
-  metadata    = meta,
+  features    = mae,
+  assay_name  = "microbiome",
   core_method = NULL,
   enhancers   = c("WLX", "LR", "KS"),
   expVar      = "group",
@@ -351,5 +352,3 @@ compositional, we use centered log‑ratio (CLR) normalization
 (`enhancer_norm = "clr"`).  The `$components` element contains the
 individual Wilcoxon, logistic regression and KS results, while
 `$ensembles` summarises every sub‑combination of the three enhancers.
-
-

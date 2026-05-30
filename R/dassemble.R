@@ -6,13 +6,60 @@
 #' tests that provide complementary evidence. P-values from the core and
 #' enhancer models are combined using the Cauchy Combination Test (CCT).
 #'
+#' @param features A `MultiAssayExperiment` object, or a data.frame with samples
+#'   in rows and features in columns.
+#' @param metadata A data.frame with sample metadata. Leave as `NULL` when
+#'   `features` is a `MultiAssayExperiment`; sample metadata is then taken from
+#'   `colData(features)`.
+#' @param assay_name Name of the assay/experiment to use when `features` is a
+#'   `MultiAssayExperiment`. Required when the object contains multiple
+#'   experiments.
+#' @param core_method Character scalar naming the core method to run, or `NULL`
+#'   / `"none"` for enhancer-only analysis.
+#' @param enhancers Character vector containing any of `"WLX"`, `"LR"`, and
+#'   `"KS"`.
+#' @param expVar Character scalar naming the binary exposure variable in
+#'   `metadata` or `colData(features)`.
+#' @param p_adj Multiple-testing correction method passed to [stats::p.adjust].
+#' @param enhancer_norm Normalization method for enhancer tests. One of
+#'   `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`.
+#' @param return_components Logical; if `TRUE`, return per-method component
+#'   result tables.
+#' @param return_subensembles Logical; if `TRUE`, return CCT sub-ensemble
+#'   results for all available method subsets.
+#'
+#' @return A list containing combined results in `res`, the analyzed feature
+#'   table in `features`, elapsed time in `Time.min`, and optionally
+#'   `components` and `ensembles`.
+#'
+#' @examples
+#' features <- data.frame(
+#'   taxon1 = c(12, 9, 11, 8, 25, 21, 23, 26),
+#'   taxon2 = c(30, 28, 31, 29, 10, 12, 11, 9),
+#'   taxon3 = c(5, 6, 4, 7, 5, 4, 6, 5),
+#'   taxon4 = c(8, 7, 9, 6, 12, 13, 11, 14),
+#'   row.names = paste0("sample", seq_len(8))
+#' )
+#' metadata <- data.frame(
+#'   group = factor(rep(c("control", "case"), each = 4)),
+#'   row.names = rownames(features)
+#' )
+#' result <- DAssemble(
+#'   features = features,
+#'   metadata = metadata,
+#'   core_method = NULL,
+#'   enhancers = "WLX",
+#'   expVar = "group"
+#' )
+#' head(result$res)
+#'
 #' @export
 DAssemble <- function(features,
-                      metadata,
+                      metadata = NULL,
                       core_method = NULL,
                       enhancers = NULL,
                       expVar = "group",
-                      coVars = NULL,
+                      assay_name = NULL,
                       p_adj = "BY",
                       enhancer_norm = "TSS",
                       return_components   = TRUE,
@@ -80,9 +127,44 @@ DAssemble <- function(features,
   ##############################################
   # 2) Sanity check of input data and metadata #
   ##############################################
+
+  if (inherits(features, "MultiAssayExperiment")) {
+    if (!requireNamespace("MultiAssayExperiment", quietly = TRUE)) {
+      stop("The 'MultiAssayExperiment' package is required for MAE input.")
+    }
+    if (!is.null(metadata)) {
+      stop("Do not provide `metadata` when `features` is a MultiAssayExperiment.")
+    }
+    mae <- features
+    assay_names <- names(MultiAssayExperiment::experiments(mae))
+    if (length(assay_names) == 0L) {
+      stop("The MultiAssayExperiment contains no experiments.")
+    }
+    if (is.null(assay_name)) {
+      if (length(assay_names) != 1L) {
+        stop("Specify `assay_name`; the MultiAssayExperiment contains multiple experiments: ",
+             paste(assay_names, collapse = ", "))
+      }
+      assay_name <- assay_names[[1L]]
+    }
+    if (!assay_name %in% assay_names) {
+      stop("assay_name '", assay_name, "' not found in MultiAssayExperiment experiments.")
+    }
+    
+    exp <- MultiAssayExperiment::experiments(mae)[[assay_name]]
+    features <- as.data.frame(t(as.matrix(SummarizedExperiment::assay(exp))))
+    metadata <- as.data.frame(SummarizedExperiment::colData(mae))
+    
+    shared_samples <- intersect(rownames(features), rownames(metadata))
+    if (length(shared_samples) == 0L) {
+      stop("No overlapping sample names between selected assay and MultiAssayExperiment colData.")
+    }
+    features <- features[shared_samples, , drop = FALSE]
+    metadata <- metadata[shared_samples, , drop = FALSE]
+  }
   
   if (!is.data.frame(features) || !is.data.frame(metadata)) {
-    stop("`features` and `metadata` must both be data.frames.")
+    stop("`features` and `metadata` must both be data.frames, unless `features` is a MultiAssayExperiment.")
   }
   
   if (is.null(rownames(features)) || is.null(rownames(metadata)) ||
