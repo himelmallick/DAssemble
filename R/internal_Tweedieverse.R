@@ -32,15 +32,10 @@
 #' Default value for \code{var_threshold} is \code{0.0} (i.e. no variance filtering).
 #' @param entropy_threshold If entropy-based filtering is desired for metadata, only features that have entropy greater than
 #' \code{entropy_threshold} are retained. Default value for \code{entropy_threshold} is \code{0.0} (i.e. no entropy filtering).
-#' @param base_model The per-feature base model. Default is "CPLM". Must be one of "CPLM", "ZICP", "ZSCP", or "ZACP".
+#' @param base_model The per-feature base model. Only "CPLM" is supported.
 #' @param link A specification of the GLM link function. Default is "log". Must be one of "log", "identity", "sqrt", or "inverse".
 #' @param fixed_effects Metadata variable(s) describing the fixed effects coefficients.
 #' @param random_effects Metadata variable(s) describing the random effects part of the model.
-#' @param cutoff_ZSCP For \code{base_model = "ZSCP"}, the cutoff to stratify features for
-#' adaptive ZI modeling based on sparsity (zero-inflation proportion). Default is 0.3. Must be between 0 and 1.
-#' @param criteria_ZACP For \code{base_model = "ZACP"}, the criteria to select the
-#' best fitting model per feature.  The possible options are 'AIC' and BIC' (default).
-#' More criteria will be supported in a future release.
 #' @param adjust_offset If TRUE (default), an offset term will be included as the logarithm of \code{scale_factor}.
 #' @param scale_factor Name of the numerical variable containing library size (for non-normalized data) or scale factor
 #' (for normalized data) across samples to be included as an offset in the base model (when \code{adjust_offset = TRUE}).
@@ -104,8 +99,6 @@ DAssemble_Tweedieverse <- function(input_features,
                          link = "log",
                          fixed_effects = NULL,
                          random_effects = NULL,
-                         cutoff_ZSCP = 0.3,
-                         criteria_ZACP = "BIC",
                          adjust_offset = TRUE,
                          scale_factor = NULL,
                          max_significance = 0.05,
@@ -129,9 +122,8 @@ DAssemble_Tweedieverse <- function(input_features,
   
   no_output <- is.null(output)
   
-  model_choices <- c("CPLM", "ZICP", "ZACP", "ZSCP")
+  model_choices <- "CPLM"
   link_choices <- c("log", "identity", "sqrt", "inverse")
-  criteria_ZACP_choices <- c("AIC", "BIC")
   correction_choices <-
     c("BH", "holm", "hochberg", "hommel", "bonferroni", "BY")
   optimizer_choices <- c("nlminb", "bobyqa", "L-BFGS-B")
@@ -248,8 +240,6 @@ DAssemble_Tweedieverse <- function(input_features,
   logging::logdebug("Link function: %s", link)
   logging::logdebug("Fixed effects: %s", fixed_effects)
   logging::logdebug("Random effects: %s", random_effects)
-  logging::logdebug("ZSCP cutoff: %f", cutoff_ZSCP)
-  logging::logdebug("ZACP criteria: %s", criteria_ZACP)
   logging::logdebug("Offset adjustment: %s", adjust_offset)
   logging::logdebug("Scale factor: %s", scale_factor)
   logging::logdebug("Max significance: %f", max_significance)
@@ -280,17 +270,6 @@ DAssemble_Tweedieverse <- function(input_features,
     )
   }
   
-  # Check if the selected criteria_ZACP is valid
-    if (!criteria_ZACP %in% criteria_ZACP_choices) {
-      option_not_valid_error(
-        paste(
-          "Please select a criteria",
-          "from the list of available options"
-        ),
-        toString(criteria_ZACP_choices)
-      )
-    }
-  
   # Check if the selected correction is valid
   if (!correction %in% correction_choices) {
     option_not_valid_error(
@@ -317,9 +296,9 @@ DAssemble_Tweedieverse <- function(input_features,
   # Check if the selected numerical options are within range #
   ############################################################
   
-  prop_options <- c(prev_threshold, cutoff_ZSCP, max_significance)
+  prop_options <- c(prev_threshold, max_significance)
   if (any(prop_options < 0) || any(prop_options > 1)) {
-    stop("One of the following is outside [0, 1]: prev_threshold, cutoff_ZSCP, max_significance")
+    stop("One of the following is outside [0, 1]: prev_threshold, max_significance")
   }
   
   ###############################################################
@@ -391,9 +370,6 @@ DAssemble_Tweedieverse <- function(input_features,
     }
   }
   
-  # Replace unexpected characters in feature names
-  # colnames(data) <- make.names(colnames(data))
-  
   # Check for samples without metadata
   extra_feature_samples <-
     setdiff(rownames(data), rownames(metadata))
@@ -442,17 +418,17 @@ DAssemble_Tweedieverse <- function(input_features,
   }
   split_reference <- unlist(strsplit(reference, "[,;]"))
   
-  # for each fixed effect, check that a reference level has been set if necessary: number of levels > 2 and metadata isn't already an ordered factor
-  for (i in fixed_effects) {
+  # For each fixed effect, check that a reference level has been set if necessary.
+  metadata <- Reduce(function(metadata, i) {
     # don't check for or require reference levels for numeric metadata
     if (is.numeric(metadata[,i])) {
-      next
+      return(metadata)
     }
     # respect ordering if a factor is explicitly passed in with no reference set
     if (is.factor(metadata[,i]) && !(i %in% split_reference)) {
       logging::loginfo(paste("Factor detected for categorial metadata '", 
                              i, "'. Provide a reference argument or manually set factor ordering to change reference level.", sep=""))
-      next
+      return(metadata)
     }
     
     # set metadata as a factor (ordered alphabetically)
@@ -482,7 +458,8 @@ DAssemble_Tweedieverse <- function(input_features,
     } else {
       stop("Provided categorical metadata has fewer than 2 unique, non-NA values.")
     }
-  }
+    metadata
+  }, fixed_effects, init = metadata)
   
   
   #########################################################
@@ -696,8 +673,6 @@ DAssemble_Tweedieverse <- function(input_features,
     link = link,
     formula = formula,
     random_effects_formula = random_effects_formula,
-    cutoff_ZSCP = cutoff_ZSCP,
-    criteria_ZACP = criteria_ZACP,
     adjust_offset = adjust_offset,
     correction = correction,
     cores = cores,
@@ -739,9 +714,9 @@ DAssemble_Tweedieverse <- function(input_features,
   #########################
   
   ordered_results <-
-    fit_data$results[order(fit_data$results$qval),]
+    fit_data$results[order(fit_data$results$qval), , drop = FALSE]
   ordered_results <-
-    ordered_results[!is.na(ordered_results$qval),] # Remove NA's
+    ordered_results[!is.na(ordered_results$qval), , drop = FALSE]
   
   if (median_comparison) {
 
@@ -761,7 +736,7 @@ DAssemble_Tweedieverse <- function(input_features,
     ordered_results$qval <- p.adjust(mc_out$pval_median,
                                      method = correction)
     
-    ordered_results <- ordered_results[order(ordered_results$qval),]
+    ordered_results <- ordered_results[order(ordered_results$qval), , drop = FALSE]
     rownames(ordered_results) <- NULL 
   }
   
@@ -797,7 +772,7 @@ DAssemble_Tweedieverse <- function(input_features,
   # Write results passing threshold to file
   # (removing any that are NA for the q-value)
   significant_results <-
-    ordered_results[ordered_results$qval <= max_significance,]
+    ordered_results[ordered_results$qval <= max_significance, , drop = FALSE]
   
   if (!no_output) {
   significant_results_file <-

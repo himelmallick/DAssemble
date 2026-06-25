@@ -4,8 +4,6 @@ fit.Tweedieverse <- function(features,
                              link = "log",
                              formula = NULL,
                              random_effects_formula = NULL,
-                             cutoff_ZSCP = 0.3,
-                             criteria_ZACP = 'BIC',
                              adjust_offset = TRUE,
                              correction = 'BH',
                              cores = 4,
@@ -46,52 +44,12 @@ fit.Tweedieverse <- function(features,
       optimizer = optimizer,
       na.action = na.action
     )
-    
+
   }
-  
-  if (base_model == 'ZICP') {
-    fit <- fit.ZICP(
-      features = features,
-      metadata = metadata,
-      link = link,
-      formula = formula,
-      random_effects_formula = random_effects_formula,
-      correction = correction,
-      cores = cores,
-      optimizer = optimizer,
-      na.action = na.action
-    )
+
+  if (base_model != 'CPLM') {
+    stop("Only base_model = 'CPLM' is available in DAssemble's internal Tweedieverse implementation.")
   }
-  
-  
-  if (base_model == 'ZSCP') {
-    fit <- fit.ZSCP(
-      features = features,
-      metadata = metadata,
-      link = link,
-      formula = formula,
-      random_effects_formula = random_effects_formula,
-      cutoff_ZSCP = cutoff_ZSCP,
-      correction = correction,
-      cores = cores,
-      optimizer = optimizer,
-      na.action = na.action
-    )
-  }
-  
-  if (base_model == 'ZACP') {
-    fit <- fit.ZACP(
-      features = features,
-      metadata = metadata,
-      link = link,
-      formula = formula,
-      random_effects_formula = random_effects_formula,
-      criteria_ZACP = criteria_ZACP,
-      correction = correction,
-      cores = cores,
-      optimizer = optimizer,
-      na.action = na.action
-    )
-  }
+
   return(fit)
 }

@@ -30,10 +30,7 @@ DA_fit_core_DESeq2 <- function(features, metadata, expVar, coVars = NULL) {
   
   feature<-rownames(stats::coef(fit))
   pval_core<-DESeq2::results(fit,name=DESeq2::resultsNames(fit)[2])$pvalue
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 ########################
@@ -56,7 +53,6 @@ DA_fit_core_edgeR <- function(features, metadata, expVar, coVars = NULL) {
   d <- edgeR::DGEList(counts = t(features))
   d <- edgeR::calcNormFactors(d, method='TMM')
   design <- stats::model.matrix(stats::as.formula(paste("~", expVar)), metadata)
-  # d <- estimateDisp(d, design) -> This step is equivalent to the next three steps
   d <- edgeR::estimateGLMCommonDisp(d, design)
   d <- edgeR::estimateGLMTrendedDisp(d, design)
   d <- edgeR::estimateGLMTagwiseDisp(d, design)
@@ -69,10 +65,7 @@ DA_fit_core_edgeR <- function(features, metadata, expVar, coVars = NULL) {
   
   feature<-rownames(fit$table)
   pval_core<-fit$table$PValue
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
   
 }
 
@@ -111,10 +104,7 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar, coVars = NULL) {
   }
   pval_core <- fit$p.value[, coef_name]
   
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 
@@ -146,17 +136,18 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar, coVars = NULL)
   # Standardized output - Feature + Metadata + Pvalue #
   #####################################################
   
-  feature<-rownames(fit@fit$coefficients)
   coef_name <- get_exp_coef_name(metadata, expVar, coVars)
-  if (!coef_name %in% colnames(fit@eb$p.value)) {
-    stop("Could not find the exposure coefficient in metagenomeSeq output.")
-  }
-  pval_core <- fit@eb$p.value[, coef_name]
+  coef_table <- metagenomeSeq::MRcoefs(
+    fit,
+    coef = coef_name,
+    number = Inf,
+    group = 4,
+    adjustMethod = "none"
+  )
+  feature <- rownames(coef_table)
+  pval_core <- coef_table$pvalues
   
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
   
 }
 
@@ -187,26 +178,27 @@ DA_fit_core_MAST <- function(features, metadata, expVar, coVars = NULL) {
   cd$condition <- droplevels(factor(metadata[[expVar]]))
   SummarizedExperiment::colData(sca) <- cd
   zlmCond <- MAST::zlm(~condition + cngeneson, sca)
-  test.cond <- colnames(zlmCond@coefC)[2]
-  summaryCond <- summary(zlmCond, doLRT = test.cond)
-  summaryDt <- as.data.frame(summaryCond$datatable)
-  h <- summaryDt[summaryDt$contrast == test.cond & summaryDt$component == "H",
-                 c("primerid", "Pr(>Chisq)")]
-  lf <- summaryDt[summaryDt$contrast == test.cond & summaryDt$component == "logFC",
-                  c("primerid", "coef", "ci.hi", "ci.lo")]
-  fcHurdle <- merge(h, lf, by='primerid')
+  mast_design <- stats::model.matrix(
+    ~condition + cngeneson,
+    data = as.data.frame(SummarizedExperiment::colData(sca))
+  )
+  test.cond <- colnames(mast_design)[2L]
+  mast_eval_env <- new.env(parent = asNamespace("MAST"))
+  mast_eval_env$test.cond <- test.cond
+  mast_eval_env$mast_terms <- colnames(mast_design)
+  test.hypothesis <- eval(
+    quote(CoefficientHypothesis(test.cond, mast_terms)),
+    envir = mast_eval_env
+  )
+  lrt <- MAST::lrTest(zlmCond, test.hypothesis)
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
   #####################################################
   
-  feature<-fcHurdle$primerid
-  pval_core<-fcHurdle[,2]
-  df<-cbind.data.frame(feature, pval_core)
-  names(df)[2] <- c('pval_core')
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
-  return(df)
+  feature <- dimnames(lrt)$primerid
+  pval_core <- lrt[, "hurdle", "Pr(>Chisq)", drop = TRUE]
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 ############################
@@ -243,10 +235,7 @@ DA_fit_core_dearseq <- function(features, metadata, expVar, coVars = NULL) {
   
   feature <- rownames(fit$pvals)
   pval_core <- fit$pvals$rawPval
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), dplyr::everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 #########################
@@ -283,10 +272,7 @@ DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL) {
   
   feature <- rownames(res)
   pval_core <- res$Pval
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 ###########################
@@ -329,11 +315,12 @@ DA_fit_core_Maaslin2 <- function(features, metadata, expVar, coVars = NULL) {
   feature   <- res$feature
   coef_core <- res$coef
   pval_core <- res$pval
-  df <- cbind.data.frame(feature, coef_core, pval_core)
-  
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(
+    feature,
+    expVar,
+    coef_core = coef_core,
+    pval_core = pval_core
+  ))
 }
 
 ###########################
@@ -377,10 +364,7 @@ DA_fit_core_Maaslin3 <- function(features, metadata, expVar, coVars = NULL) {
   res <- res[res$metadata == expVar, , drop = FALSE]
   feature<-res$feature
   pval_core <- res$pval_joint
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 
@@ -421,10 +405,7 @@ DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar, coVars = NULL) {
   p_col <- grep(paste0("^p_", expVar), names(res), value = TRUE)
   feature<-res$taxon
   pval_core <- res[[p_col]]
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 #########################
@@ -474,10 +455,7 @@ DA_fit_core_ALDEx2 <- function(features, metadata, expVar, coVars = NULL) {
   # Standardized output - Feature + Metadata + Pvalue #
   #####################################################
   
-  df <- cbind.data.frame(feature, pval_core)
-  df$metadata <- expVar
-  df <- dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
 
@@ -519,10 +497,7 @@ DA_fit_core_LinDA <- function(features, metadata, expVar, coVars = NULL) {
   
   feature <- rownames(res)
   pval_core <- res$pvalue
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
   
 }
 
@@ -564,10 +539,7 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar, coVars = NULL) {
     feature <- colnames(otu)
   }
   pval_core <- as.vector(fit$p.otu.Wald)
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
   
 }
 
@@ -614,9 +586,6 @@ DA_fit_core_Tweedieverse <- function(features, metadata, expVar, coVars = NULL) 
   res <- res[res$metadata == expVar, , drop = FALSE]
   feature<-res$feature
   pval_core <- res$pval
-  df<-cbind.data.frame(feature, pval_core)
-  df$metadata<- expVar
-  df<-dplyr::select(df, c('feature', 'metadata'), everything())
-  return(df)
+  return(DA_format_result(feature, expVar, pval_core = pval_core))
   
 }

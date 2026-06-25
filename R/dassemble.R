@@ -282,7 +282,7 @@ DAssemble <- function(features,
       )
     }
     
-    for (e in enh_list) {
+    enhancer_results <- lapply(enh_list, function(e) {
       fun <- paste0("DA_fit_enhancer_", e)
       
       # Force: LR uses NO CLR, while other enhancers use CLR (or whatever norm_method is)
@@ -307,15 +307,21 @@ DAssemble <- function(features,
       if (!pcol_expected %in% names(tmp)) {
         stop("Enhancer ", e, " result must contain a '", pcol_expected, "' column.")
       }
-      
-      if (is.null(res)) {
-        res <- tmp
-      } else {
-        res <- dplyr::left_join(res, tmp, by = c("feature", "metadata"))
-      }
-      
-      components[[e]] <- tmp
+
+      tmp
+    })
+    names(enhancer_results) <- enh_list
+
+    join_enhancer <- function(left, right) {
+      dplyr::left_join(left, right, by = c("feature", "metadata"))
     }
+    res <- if (is.null(res)) {
+      Reduce(join_enhancer, enhancer_results)
+    } else {
+      Reduce(join_enhancer, enhancer_results, init = res)
+    }
+
+    components <- c(components, enhancer_results)
   }
   
   ###################################

@@ -43,6 +43,17 @@ normalize_result_features <- function(df, feature_key_map, label = "result") {
   df
 }
 
+DA_format_result <- function(feature, expVar, ...) {
+  df <- data.frame(
+    feature = feature,
+    ...,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  df$metadata <- expVar
+  dplyr::select(df, c("feature", "metadata"), dplyr::everything())
+}
+
 build_design_matrix <- function(metadata, expVar, coVars = NULL) {
   stats::model.matrix(
     stats::as.formula(paste("~", build_rhs(expVar, coVars))),
@@ -192,16 +203,10 @@ DA_do_call <- function(fun_or_name, args_list) {
   fm <- names(formals(fn))
   use <- args_list[intersect(names(args_list), fm)]
   missing_req <- setdiff(fm, names(use))
-  if (length(missing_req)) for (m in missing_req) use[[m]] <- NULL
+  if (length(missing_req)) {
+    use[missing_req] <- rep(list(NULL), length(missing_req))
+  }
   do.call(fn, use)
-}
-
-
-
-# Vectorized row-wise CCT using your CCT() defined in your codebase.
-DA_CCT_rows <- function(mat) {
-  if (!exists("CCT")) stop("CCT not found in the environment.")
-  apply(mat, 1L, function(pv) CCT(as.numeric(pv)))
 }
 
 
@@ -278,44 +283,6 @@ DA_CCT_rows <- function(mat) {
   apply(mat, 1L, function(pv) CCT(as.numeric(pv)))
 }
 
-##########################################
-## Two-vector helper (exactly 2 views)  ##
-##########################################
-
-combinePvalCCT <- function(pvalue1, pvalue2) {
-  if (length(pvalue1) != length(pvalue2))
-    stop("The lengths of two pvalue vectors should match up!")
-  
-  n <- length(pvalue1)
-  combined_p_value <- numeric(n)
-  
-  for (i in seq_len(n)) {
-    combined_p_value[i] <- CCT(c(pvalue1[i], pvalue2[i]))
-  }
-  combined_p_value
-}
-
-#######################################################
-## Flexible helper for 1, 2, 3, ... p-value vectors ##
-#######################################################
-
-combinePvalCCT_multi <- function(...) {
-  p_list <- list(...)
-  if (length(p_list) == 0L) {
-    stop("At least one p-value vector is required.")
-  }
-  
-  # Check equal length
-  lens <- vapply(p_list, length, integer(1))
-  if (length(unique(lens)) != 1L) {
-    stop("All p-value vectors must have the same length.")
-  }
-  
-  # Build matrix and reuse DA_CCT_rows (which handles 1-column bypass)
-  pmat <- do.call(cbind, p_list)
-  DA_CCT_rows(pmat)
-}
-
 #########################################################
 ## Build subensembles using CCT (with single-method    ##
 ## bypass handled inside DA_CCT_rows)                  ##
@@ -346,16 +313,14 @@ DA_build_subensembles <- function(res, core_method, enh_list, p_adj = "BH") {
   }
   
   # All non-empty subsets of available methods
-  subsets <- list()
-  for (k in seq_len(length(labels))) {
-    cmb <- combn(labels, k, simplify = FALSE)
-    subsets <- c(subsets, cmb)
-  }
-  
-  ensembles <- list()
+  subsets <- unlist(
+    lapply(seq_along(labels), function(k) combn(labels, k, simplify = FALSE)),
+    recursive = FALSE
+  )
+
   feature <- res$feature
-  
-  for (lab_set in subsets) {
+
+  ensembles <- lapply(subsets, function(lab_set) {
     # Build a human-readable key like "core+WLX+LR"
     name_parts <- vapply(
       lab_set,
@@ -376,13 +341,15 @@ DA_build_subensembles <- function(res, core_method, enh_list, p_adj = "BH") {
     # Combine p-values row-wise with CCT (or identity if one column)
     p_comb <- DA_CCT_rows(pmat)
     
-    ensembles[[key]] <- data.frame(
+    out <- data.frame(
       feature = feature,
       Pval    = p_comb,
       adjPval = stats::p.adjust(p_comb, method = p_adj),
       stringsAsFactors = FALSE
     )
-  }
-  
+    stats::setNames(list(out), key)
+  })
+  ensembles <- do.call(c, ensembles)
+
   ensembles
 }
