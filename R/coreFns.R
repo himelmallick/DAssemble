@@ -305,6 +305,9 @@ DA_fit_core_Maaslin2 <- function(features, metadata, expVar, coVars = NULL) {
                             plot_scatter = FALSE, 
                             max_significance = 1)
   res <- fit$results
+  if (requireNamespace("logging", quietly = TRUE)) {
+    try(logging::removeHandler("logging::writeToFile"), silent = TRUE)
+  }
   unlink(tmp, recursive = TRUE)
   
   #####################################################
@@ -354,6 +357,9 @@ DA_fit_core_Maaslin3 <- function(features, metadata, expVar, coVars = NULL) {
     plot_summary_plot = FALSE, 
     plot_associations = FALSE, 
     max_significance = 1)
+  if (requireNamespace("logging", quietly = TRUE)) {
+    try(logging::removeHandler("logging::writeToFile"), silent = TRUE)
+  }
   unlink(tmp, recursive = TRUE)
   res <- as.data.frame(fit$fit_data_abundance$results)
   

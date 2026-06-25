@@ -418,6 +418,13 @@ DAssemble_Tweedieverse <- function(input_features,
   }
   split_reference <- unlist(strsplit(reference, "[,;]"))
   
+  fixed_effects_for_reference <- if (is.null(fixed_effects)) {
+    colnames(metadata)
+  } else {
+    unlist(strsplit(fixed_effects, ",", fixed = TRUE))
+  }
+  fixed_effects_for_reference <- intersect(fixed_effects_for_reference, colnames(metadata))
+
   # For each fixed effect, check that a reference level has been set if necessary.
   metadata <- Reduce(function(metadata, i) {
     # don't check for or require reference levels for numeric metadata
@@ -459,7 +466,7 @@ DAssemble_Tweedieverse <- function(input_features,
       stop("Provided categorical metadata has fewer than 2 unique, non-NA values.")
     }
     metadata
-  }, fixed_effects, init = metadata)
+  }, fixed_effects_for_reference, init = metadata)
   
   
   #########################################################

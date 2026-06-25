@@ -118,7 +118,7 @@ test_that("enhancers return standardized p-value tables", {
 test_that("enhancer-only DAssemble returns combined results and subensembles", {
   toy <- make_toy_data()
 
-  res <- suppressWarnings(DAssemble(
+  res_captured <- capture_warnings(DAssemble(
     features = toy$features,
     metadata = toy$metadata,
     core_method = NULL,
@@ -129,6 +129,8 @@ test_that("enhancer-only DAssemble returns combined results and subensembles", {
     return_components = TRUE,
     return_subensembles = TRUE
   ))
+  expect_captured_warning(res_captured, "exactly 1")
+  res <- res_captured$value
 
   expect_type(res, "list")
   expect_equal(res$Method, "CCT(WLX+KS)")
