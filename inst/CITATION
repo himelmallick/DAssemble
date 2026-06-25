@@ -1,0 +1,24 @@
+bibentry(
+  bibtype = "Unpublished",
+  title = "Repurposing without Reinventing the Wheel - Ensemble Models for Differential Analysis",
+  author = c(
+    person("Ziyu", "Liu"),
+    person("Suvo", "Chatterjee"),
+    person("Erina", "Paul"),
+    person("Jialin", "Gao"),
+    person("Nalin", "Arora"),
+    person("Piyali", "Basak"),
+    person("Arinjita", "Bhattacharyya"),
+    person("Chitrak", "Banerjee"),
+    person("Himel", "Mallick")
+  ),
+  note = "Manuscript under review at Bioinformatics",
+  year = "2026",
+  textVersion = paste(
+    "Liu Z, Chatterjee S, Paul E, Gao J, Arora N, Basak P,",
+    "Bhattacharyya A, Banerjee C and Mallick H.",
+    "Repurposing without Reinventing the Wheel -",
+    "Ensemble Models for Differential Analysis.",
+    "Manuscript under review at Bioinformatics, 2026."
+  )
+)

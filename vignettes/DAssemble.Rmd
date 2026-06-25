@@ -18,7 +18,7 @@ vignette: >
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>", warning = F
 )
 ```
 
@@ -34,6 +34,18 @@ For lower-level workflows, `features` can also be a data frame with samples in
 rows and features in columns, paired with a `metadata` data frame with matching
 sample row names. The exposure variable supplied through `expVar` must be
 binary.
+
+# Installation
+
+Install `DAssemble` from Bioconductor with `BiocManager`:
+
+```{r installation, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+BiocManager::install("DAssemble")
+```
 
 # Bulk RNA-seq Example
 
