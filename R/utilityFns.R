@@ -86,6 +86,10 @@ build_covariate_matrix <- function(metadata, coVars = NULL) {
   mm
 }
 
+DA_positive_geometric_mean <- function(x, na.rm = TRUE) {
+  exp(sum(log(x[x > 0]), na.rm = na.rm) / length(x))
+}
+
 
 ###########################
 # DAssemble Normalization #

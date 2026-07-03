@@ -17,10 +17,11 @@ DA_fit_core_DESeq2 <- function(features, metadata, expVar, coVars = NULL) {
   
   design <- stats::as.formula(paste("~", expVar))
   x <- DESeq2::DESeqDataSetFromMatrix(countData = t(as.matrix(features)), colData = metadata, design = design)
-  gm_mean <- function(x, na.rm=TRUE){
-    exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
-  }
-  geoMeans <- apply(DESeq2::counts(x), 1, gm_mean)
+  geoMeans <- apply(
+    DESeq2::counts(x),
+    1,
+    DA_positive_geometric_mean
+  )
   x <- DESeq2::estimateSizeFactors(x, geoMeans = geoMeans)
   fit <- DESeq2::DESeq(x)
   

@@ -18,9 +18,25 @@ vignette: >
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>", warning = F
+  comment = "#>", warning = FALSE
 )
 ```
+
+# DAssemble
+DAssemble is an R package for ensemble-based differential association analysis 
+of high-throughput omics data. It provides a flexible framework for combining 
+a user-specified **core method** with one or more complementary **enhancer** methods, 
+allowing users to integrate statistical evidence across different modeling assumptions 
+rather than relying on a single differential analysis approach. DAssemble aggregates 
+model-specific p-values using the **Cauchy Combination Tests (CCT)** and reports both 
+ensemble-level and method-specific results.
+
+The package was developed to support robust and interpretable differential analysis 
+across multiple omics domains, including bulk RNA-seq, single-cell RNA-seq, and 
+microbiome data. We submitted DAssemble to Bioconductor to make the method easier 
+to install, document, test, and integrate with established Bioconductor workflows 
+and data structures, thereby supporting reproducible and extensible analysis of 
+high-throughput biological data.
 
 # Overview
 
@@ -58,6 +74,8 @@ example_pkgs <- c("airway", "DESeq2", "MultiAssayExperiment", "S4Vectors")
 if (all(vapply(example_pkgs, requireNamespace, logical(1), quietly = TRUE))) {
   data("airway", package = "airway")
   counts <- SummarizedExperiment::assay(airway, "counts")
+  keep_genes <- order(rowSums(counts), decreasing = TRUE)[seq_len(500L)]
+  counts <- counts[keep_genes, , drop = FALSE]
   metadata <- as.data.frame(SummarizedExperiment::colData(airway))
   metadata <- metadata[colnames(counts), , drop = FALSE]
 
@@ -105,7 +123,9 @@ if (all(vapply(example_pkgs, requireNamespace, logical(1), quietly = TRUE))) {
   metadata <- as.data.frame(phyloseq::sample_data(gp))
 
   keep <- metadata$SampleType %in% c("Feces", "Soil")
-  features <- as.data.frame(t(otu[, keep]))
+  otu <- otu[, keep, drop = FALSE]
+  keep_taxa <- order(rowSums(otu), decreasing = TRUE)[seq_len(250L)]
+  features <- as.data.frame(t(otu[keep_taxa, , drop = FALSE]))
   metadata <- metadata[keep, , drop = FALSE]
   metadata$group <- droplevels(factor(metadata$SampleType))
   stopifnot(nlevels(metadata$group) == 2L)

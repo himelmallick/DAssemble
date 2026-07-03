@@ -40,10 +40,11 @@ DAssemble_robseq_rle_norm <- function(features,
     colData = metadata,
     design = formula
   )
-  gm_mean <- function(x, na.rm = TRUE) {
-    exp(sum(log(x[x > 0]), na.rm = na.rm) / length(x))
-  }
-  geoMeans <- apply(DESeq2::counts(x), 1, gm_mean)
+  geoMeans <- apply(
+    DESeq2::counts(x),
+    1,
+    DA_positive_geometric_mean
+  )
   s <- DESeq2::estimateSizeFactors(x, geoMeans = geoMeans)$sizeFactor
   data.frame(t(apply(features, 1, function(x) x / s)))
 }
