@@ -22,7 +22,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-# DAssemble
+# Introduction
 DAssemble is an R package for ensemble-based differential association analysis 
 of high-throughput omics data. It provides a flexible framework for combining 
 a user-specified **core method** with one or more complementary **enhancer** methods, 
@@ -70,37 +70,36 @@ smooth muscle cells treated with dexamethasone. The example below runs
 `DAssemble` with `DESeq2` as the core method and two enhancers.
 
 ```{r airway-example}
-example_pkgs <- c("airway", "DESeq2", "MultiAssayExperiment", "S4Vectors")
-if (all(vapply(example_pkgs, requireNamespace, logical(1), quietly = TRUE))) {
-  data("airway", package = "airway")
-  counts <- SummarizedExperiment::assay(airway, "counts")
-  keep_genes <- order(rowSums(counts), decreasing = TRUE)[seq_len(500L)]
-  counts <- counts[keep_genes, , drop = FALSE]
-  metadata <- as.data.frame(SummarizedExperiment::colData(airway))
-  metadata <- metadata[colnames(counts), , drop = FALSE]
+data("airway", package = "airway")
+counts <- SummarizedExperiment::assay(airway, "counts")
+keep_genes <- order(rowSums(counts), decreasing = TRUE)[seq_len(500L)]
+counts <- counts[keep_genes, , drop = FALSE]
+metadata <- as.data.frame(SummarizedExperiment::colData(airway))
+metadata <- metadata[colnames(counts), , drop = FALSE]
 
-  mae <- MultiAssayExperiment::MultiAssayExperiment(
-    experiments = list(rnaseq = SummarizedExperiment::SummarizedExperiment(
-      assays = list(counts = counts)
-    )),
-    colData = S4Vectors::DataFrame(metadata)
-  )
+se <- SummarizedExperiment::SummarizedExperiment(
+  assays = list(counts = counts)
+)
 
-  res <- DAssemble::DAssemble(
-    features = mae,
-    assay_name = "rnaseq",
-    core_method = "DESeq2",
-    enhancers = c("WLX", "LR"),
-    expVar = "dex",
-    p_adj = "BH",
-    enhancer_norm = "tmm",
-    return_components = TRUE,
-    return_subensembles = TRUE
-  )
+mae <- MultiAssayExperiment::MultiAssayExperiment(
+  experiments = list(rnaseq = se),
+  colData = S4Vectors::DataFrame(metadata)
+)
 
-  head(res$res)
-  names(res$components)
-}
+res <- DAssemble::DAssemble(
+  features = mae,
+  assay_name = "rnaseq",
+  core_method = "DESeq2",
+  enhancers = c("WLX", "LR"),
+  expVar = "dex",
+  p_adj = "BH",
+  enhancer_norm = "tmm",
+  return_components = TRUE,
+  return_subensembles = TRUE
+)
+
+head(res$res)
+names(res$components)
 ```
 
 This analysis combines DESeq2 p-values with Wilcoxon and logistic-regression
@@ -114,50 +113,103 @@ environmental and host-associated microbiome samples. The example below compares
 fecal and soil samples using enhancer-only DAssemble with CLR normalization.
 
 ```{r microbiome-example}
-example_pkgs <- c("phyloseq", "MultiAssayExperiment", "S4Vectors")
-if (all(vapply(example_pkgs, requireNamespace, logical(1), quietly = TRUE))) {
-  data("GlobalPatterns", package = "phyloseq")
-  gp <- GlobalPatterns
+data("GlobalPatterns", package = "phyloseq")
+gp <- GlobalPatterns
 
-  otu <- as(phyloseq::otu_table(gp), "matrix")
-  metadata <- as.data.frame(phyloseq::sample_data(gp))
+otu <- as(phyloseq::otu_table(gp), "matrix")
+metadata <- as.data.frame(phyloseq::sample_data(gp))
 
-  keep <- metadata$SampleType %in% c("Feces", "Soil")
-  otu <- otu[, keep, drop = FALSE]
-  keep_taxa <- order(rowSums(otu), decreasing = TRUE)[seq_len(250L)]
-  features <- as.data.frame(t(otu[keep_taxa, , drop = FALSE]))
-  metadata <- metadata[keep, , drop = FALSE]
-  metadata$group <- droplevels(factor(metadata$SampleType))
-  stopifnot(nlevels(metadata$group) == 2L)
+keep <- metadata$SampleType %in% c("Feces", "Soil")
+otu <- otu[, keep, drop = FALSE]
+keep_taxa <- order(rowSums(otu), decreasing = TRUE)[seq_len(250L)]
+features <- as.data.frame(t(otu[keep_taxa, , drop = FALSE]))
+metadata <- metadata[keep, , drop = FALSE]
+metadata$group <- droplevels(factor(metadata$SampleType))
+stopifnot(nlevels(metadata$group) == 2L)
 
-  mae <- MultiAssayExperiment::MultiAssayExperiment(
-    experiments = list(microbiome = SummarizedExperiment::SummarizedExperiment(
-      assays = list(counts = t(as.matrix(features)))
-    )),
-    colData = S4Vectors::DataFrame(metadata)
-  )
+se <- SummarizedExperiment::SummarizedExperiment(
+  assays = list(counts = t(as.matrix(features)))
+)
 
-  res <- DAssemble::DAssemble(
-    features = mae,
-    assay_name = "microbiome",
-    core_method = NULL,
-    enhancers = c("WLX", "LR", "KS"),
-    expVar = "group",
-    enhancer_norm = "clr",
-    return_components = TRUE,
-    return_subensembles = TRUE
-  )
+mae <- MultiAssayExperiment::MultiAssayExperiment(
+  experiments = list(microbiome = se),
+  colData = S4Vectors::DataFrame(metadata)
+)
 
-  head(res$res)
-  names(res$components)
-  head(res$ensembles)
-}
+res <- DAssemble::DAssemble(
+  features = mae,
+  assay_name = "microbiome",
+  core_method = NULL,
+  enhancers = c("WLX", "LR", "KS"),
+  expVar = "group",
+  enhancer_norm = "clr",
+  return_components = TRUE,
+  return_subensembles = TRUE
+)
+
+head(res$res)
+names(res$components)
+head(res$ensembles)
 ```
 
 Because the core method is `NULL`, this example combines only enhancer tests.
 The `$ensembles` element reports the CCT results for the enhancer combinations
 when `return_subensembles = TRUE`.
 
+# Single-Cell Example
+
+The single-cell example uses a small `SingleCellExperiment` object with two cell
+groups. The object is wrapped in a `MultiAssayExperiment` before being passed to
+`DAssemble`, matching the same input architecture used above.
+
+```{r single-cell-example}
+set.seed(1)
+n_genes <- 120L
+n_cells <- 20L
+
+cell_type <- factor(rep(c("control", "treated"), each = n_cells / 2L))
+counts <- matrix(
+  stats::rnbinom(n_genes * n_cells, mu = 20, size = 5),
+  nrow = n_genes,
+  dimnames = list(
+    paste0("gene", seq_len(n_genes)),
+    paste0("cell", seq_len(n_cells))
+  )
+)
+
+counts[seq_len(12L), cell_type == "treated"] <-
+  counts[seq_len(12L), cell_type == "treated"] + 15L
+
+metadata <- data.frame(
+  CellType = cell_type,
+  row.names = colnames(counts)
+)
+
+sce <- SingleCellExperiment::SingleCellExperiment(
+  assays = list(counts = counts),
+  colData = S4Vectors::DataFrame(metadata)
+)
+
+mae <- MultiAssayExperiment::MultiAssayExperiment(
+  experiments = list(single_cell = sce),
+  colData = S4Vectors::DataFrame(metadata)
+)
+
+res <- DAssemble::DAssemble(
+  features = mae,
+  assay_name = "single_cell",
+  core_method = "edgeR",
+  enhancers = c("WLX", "LR", "KS"),
+  enhancer_norm = "TSS",
+  expVar = "CellType",
+  p_adj = "BH",
+  return_components = TRUE,
+  return_subensembles = TRUE
+)
+
+head(res$res)
+names(res$components)
+```
 # Session information
 
 ```{r session-info}
