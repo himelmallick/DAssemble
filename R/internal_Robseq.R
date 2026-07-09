@@ -30,7 +30,7 @@ DAssemble_robseq_rle_norm <- function(features,
   if (is.null(coVars)) {
     metadata <- metadata[, c(expVar), drop = FALSE]
   } else {
-    metadata <- metadata[, c(expVar, coVars)]
+    metadata <- metadata[, c(expVar, coVars), drop = FALSE]
   }
   formula <- stats::as.formula(
     paste("~", paste(colnames(metadata), collapse = "+"), sep = "")
@@ -40,10 +40,11 @@ DAssemble_robseq_rle_norm <- function(features,
     colData = metadata,
     design = formula
   )
-  gm_mean <- function(x, na.rm = TRUE) {
-    exp(sum(log(x[x > 0]), na.rm = na.rm) / length(x))
-  }
-  geoMeans <- apply(DESeq2::counts(x), 1, gm_mean)
+  geoMeans <- apply(
+    DESeq2::counts(x),
+    1,
+    DA_positive_geometric_mean
+  )
   s <- DESeq2::estimateSizeFactors(x, geoMeans = geoMeans)$sizeFactor
   data.frame(t(apply(features, 1, function(x) x / s)))
 }
@@ -106,7 +107,7 @@ DAssemble_robust_dge <- function(features,
   if (is.null(coVars)) {
     regData <- metadata[, c(expVar), drop = FALSE]
   } else {
-    regData <- metadata[, c(expVar, coVars)]
+    regData <- metadata[, c(expVar, coVars), drop = FALSE]
   }
   character_cols <- vapply(regData, is.character, logical(1))
   regData[character_cols] <- lapply(regData[character_cols], as.factor)
@@ -156,7 +157,7 @@ DAssemble_robust_dge <- function(features,
   Genes <- rownames(norm_y)
   output <- data.frame(Genes = Genes, res)
   output$adjPval <- stats::p.adjust(output$Pval, method = "BH")
-  output <- output[order(output$adjPval), ]
+  output <- output[order(output$adjPval), , drop = FALSE]
   stop_time <- Sys.time()
   time_min <- round(difftime(stop_time, start_time, units = "mins")[[1]], 3)
   list(

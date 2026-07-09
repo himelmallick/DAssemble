@@ -75,8 +75,7 @@ fit.CPLM <- function(features,
     summary_function <- function(fit) {
       glmmTMB_summary <- coef(summary(fit))
       para <- as.data.frame(glmmTMB_summary$cond)[-1,-3]
-      para$base.model <-
-        ifelse(is.null(glmmTMB_summary$zi), 'CPLM', 'ZICP')
+      para$base.model <- 'CPLM'
       para$tweedie.index <-
         round(unname(plogis(fit$fit$par["thetaf"]) + 1), 3)
       para$name <- rownames(glmmTMB_summary$cond)[-1]
@@ -211,7 +210,7 @@ fit.CPLM <- function(features,
   metadata_names <- setdiff(colnames(metadata), "offset")
   # order the metadata names by decreasing length
   metadata_names_ordered <-
-    metadata_names[order(nchar(metadata_names), decreasing = TRUE)]
+    metadata_names[order(nchar(metadata_names), decreasing = TRUE, na.last = TRUE)]
   # find the metadata name based on the match
   # to the beginning of the string
   extract_metadata_name <- function(name) {
@@ -234,7 +233,7 @@ fit.CPLM <- function(features,
   # Sort by decreasing q-value #
   ##############################
   
-  paras <- paras[order(paras$qval, decreasing = FALSE),]
+  paras <- paras[order(paras$qval, decreasing = FALSE), , drop = FALSE]
   paras <-
     dplyr::select(paras,
                   c('feature', 'metadata', 'value'),

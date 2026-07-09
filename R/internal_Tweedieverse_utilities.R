@@ -88,7 +88,6 @@ get_AICtab<-function(fit){
 #' entropy(c("A", "A", "B", "B", "C"))
 #' @noRd
 entropy <- function(target) {
-  #if(all(is.na(target)))  0 
   freq <- table(target)/length(target)
   # vectorize
   vec <- as.data.frame(freq)[,2]
@@ -97,71 +96,6 @@ entropy <- function(target) {
   #compute entropy
   -sum(vec * log2(vec))
 }
-
-IG_numeric<-function(data, feature, target, bins=4) {
-  #Strip out rows where feature is NA
-  data<-data[!is.na(data[,feature]),]
-  #compute entropy for the parent
-  e0<-entropy(data[,target])
-  
-  data$bin_cat<-cut(data[,feature], breaks = bins, labels = seq_len(bins))
-  
-  #use dplyr to compute e and p for each value of the feature
-  dd_data <- dplyr::summarise(dplyr::group_by(data, bin_cat),
-    e = entropy(get(target)),
-    n = length(get(target)),
-    min = min(get(feature)),
-    max = max(get(feature))
-  )
-  
-  #calculate p for each value of feature
-  dd_data$p<-dd_data$n/nrow(data)
-  #compute IG
-  IG<-e0-sum(dd_data$p*dd_data$e)
-  
-  return(IG)
-}
-
-
-
-#returns IG for categorical variables.
-IG_cat<-function(data,feature,target){
-  #Strip out rows where feature is NA
-  data<-data[!is.na(data[,feature]),] 
-  #use dplyr to compute e and p for each value of the feature
-  dd_data <- dplyr::summarise(dplyr::group_by_at(data, feature),
-    e = entropy(get(target)),
-    n = length(get(target))
-  )
-  
-  #compute entropy for the parent
-  e0<-entropy(data[,target])
-  #calculate p for each value of feature
-  dd_data$p<-dd_data$n/nrow(data)
-  #compute IG
-  IG<-e0-sum(dd_data$p*dd_data$e)
-  
-  return(IG)
-}
-
-# entropy (c("A", "A", "A", "A", "A", "B", "B"))
-# 0.8631206
-
-#entropy (c("A", "A", "A", "A"))
-# 0
-
-#entropy (c("A", "A", "A", "A", "B", "B", "B", "B"))
-#1
-
-#entropy (c("C", "A", "A", "A", "B", "B", "B", "B"))
-# 1.405639
-
-#entropy (c("C", "A", "D", "A", "B", "B", "B", "B"))
-# 1.75
-
-# entropy (c(1, 1, 2, 1, 1, 1, 2, 1))
-#0.8112781
-
 
 # Written by Grace
 read_input_table <- function(path) {
@@ -319,23 +253,24 @@ median_comparison_tweedie <- function(df,
   df$coef_median <- df$effect_size  # By default, same as effect_size
   
   # Process each metadata variable separately
-  for (md in unique(df$metadata)) {
+  df$.orig_order <- seq_len(nrow(df))
+  split_indices <- split(seq_len(nrow(df)), df$metadata)
+  processed_groups <- lapply(split_indices, function(sub_idx) {
     # 1) Subset to just this metadata predictor
-    sub_idx <- which(df$metadata == md)
-    sub_df  <- df[sub_idx, ]
-    
+    sub_df  <- df[sub_idx, , drop = FALSE]
+
     # 2) Filter out obviously "bad" or huge p-values before computing the median
     use_idx <- which(!is.na(sub_df$pval) & sub_df$pval < p_cutoff)
     if (length(use_idx) == 0) {
       # If none are usable, move on
-      next
+      return(sub_df)
     }
-    
+
     # 3) Compute the "group-wide" median of the usable coefficients
     cur_median <- stats::median(sub_df$effect_size[use_idx], na.rm = TRUE)
     if (is.na(cur_median)) {
       # If no valid median, skip
-      next
+      return(sub_df)
     }
     
     # 4) Optionally shift each coefficient by the median
@@ -377,26 +312,28 @@ median_comparison_tweedie <- function(df,
     #    - If difference from median < threshold => p=1
     #    - Else do test:  H0: coef[i] = offsets_to_test[i]
     #        =>  z = (coef - offset) / SE
-    pvals_median <- numeric(n_coefs)
-    
-    for (i in seq_len(n_coefs)) {
+    pvals_median <- vapply(seq_len(n_coefs), function(i) {
       if (abs(coefs[i] - cur_median) < median_threshold) {
         # If difference is trivially small => p=1
-        pvals_median[i] <- 1
+        1
       } else if (is.na(coefs[i]) || is.na(ses[i]) || ses[i] == 0) {
-        pvals_median[i] <- NA
+        NA_real_
       } else {
         # Normal approx. test for H0: coefs[i] == offsets_to_test[i]
         z_stat <- (coefs[i] - offsets_to_test[i]) / ses[i]
-        pvals_median[i] <- 2 * stats::pnorm(abs(z_stat), lower.tail = FALSE)
+        2 * stats::pnorm(abs(z_stat), lower.tail = FALSE)
       }
-    }
-    
+    }, numeric(1))
+
     # Save the results back into the subset
     sub_df$pval_median <- pvals_median
-    df[sub_idx, ]      <- sub_df
-  }
-  
+    sub_df
+  })
+  df <- do.call(rbind, processed_groups)
+  df <- df[order(df$.orig_order), , drop = FALSE]
+  df$.orig_order <- NULL
+  rownames(df) <- NULL
+
   # Return the augmented data
   return(df)
 }
