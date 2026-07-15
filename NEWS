@@ -1,3 +1,9 @@
+DAssemble 0.99.3
+=================
+
+* Updated package metadata for Bioconductor resubmission.
+* Added .DS_Store to .gitignore and cleaned temporary build artifacts.
+
 DAssemble 0.99.2
 =================
 
