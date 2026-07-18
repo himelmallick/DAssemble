@@ -1,3 +1,24 @@
+DAssemble 0.99.3
+=================
+
+* Updated package metadata for Bioconductor resubmission.
+* Added .DS_Store to .gitignore and cleaned temporary build artifacts.
+
+DAssemble 0.99.2
+=================
+
+* Updated NEWS for the latest Bioconductor resubmission version.
+
+DAssemble 0.99.1
+=================
+
+* Added Bioconductor-ready vignette examples for bulk RNA-seq, microbiome, and
+  single-cell workflows.
+* Expanded unit test coverage across core methods, enhancers, normalization,
+  CCT utilities, and internal helper functions.
+* Added package-level documentation and improved reviewer-requested
+  attribution for incorporated Robseq and Tweedieverse code.
+
 DAssemble 0.99.0
 =================
 
