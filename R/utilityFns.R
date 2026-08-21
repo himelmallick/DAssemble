@@ -69,6 +69,26 @@ get_exp_coef_name <- function(metadata, expVar, coVars = NULL) {
   colnames(mm)[2L]
 }
 
+build_random_effects_terms <- function(random_effects = NULL) {
+  if (is.null(random_effects) || length(random_effects) == 0L) {
+    return(NULL)
+  }
+  paste0("(1 | ", random_effects, ")")
+}
+
+build_model_formula <- function(expVar,
+                                coVars = NULL,
+                                random_effects = NULL,
+                                response = "expr") {
+  rhs_terms <- c(build_rhs(expVar, coVars), build_random_effects_terms(random_effects))
+  rhs_terms <- rhs_terms[!is.na(rhs_terms) & nzchar(rhs_terms)]
+  stats::as.formula(paste(response, "~", paste(rhs_terms, collapse = " + ")))
+}
+
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
 build_covariate_matrix <- function(metadata, coVars = NULL) {
   if (is.null(coVars) || length(coVars) == 0L) {
     return(NULL)
@@ -205,12 +225,50 @@ DAssemble_normalize_features <- function(features,
 DA_do_call <- function(fun_or_name, args_list) {
   fn <- if (is.character(fun_or_name)) get(fun_or_name, mode = "function") else fun_or_name
   fm <- names(formals(fn))
-  use <- args_list[intersect(names(args_list), fm)]
+  has_dots <- "..." %in% fm
+  use <- args_list[intersect(names(args_list), setdiff(fm, "..."))]
+  if (has_dots) {
+    extra <- args_list[setdiff(names(args_list), names(use))]
+    use <- c(use, extra)
+  }
   missing_req <- setdiff(fm, names(use))
+  missing_req <- setdiff(missing_req, "...")
   if (length(missing_req)) {
     use[missing_req] <- rep(list(NULL), length(missing_req))
   }
   do.call(fn, use)
+}
+
+merge_method_args <- function(default = list(), override = list()) {
+  if (is.null(default)) default <- list()
+  if (is.null(override)) override <- list()
+  utils::modifyList(default, override)
+}
+
+resolve_method_args <- function(method_args,
+                                method = NULL,
+                                class = c("core", "enhancer")) {
+  class <- match.arg(class)
+  if (is.null(method_args)) {
+    return(list())
+  }
+  if (!is.list(method_args)) {
+    stop("method_args must be a named list.")
+  }
+
+  shared <- if (!is.null(method_args[[class]]) && is.list(method_args[[class]])) {
+    method_args[[class]]
+  } else {
+    list()
+  }
+
+  specific <- if (!is.null(method) && !is.null(method_args[[method]]) && is.list(method_args[[method]])) {
+    method_args[[method]]
+  } else {
+    list()
+  }
+
+  merge_method_args(shared, specific)
 }
 
 
@@ -285,6 +343,48 @@ DA_CCT_rows <- function(mat) {
   
   # Otherwise, combine via CCT row-wise
   apply(mat, 1L, function(pv) CCT(as.numeric(pv)))
+}
+
+DA_build_subensembles_generic <- function(res, methods, p_adj = "BH") {
+  if (!"feature" %in% names(res)) {
+    stop("The input 'res' must contain a 'feature' column.")
+  }
+
+  methods <- unique(methods)
+  method_to_pcol <- stats::setNames(
+    paste0("pval_", methods),
+    methods
+  )
+  method_to_pcol <- method_to_pcol[method_to_pcol %in% names(res)]
+
+  if (length(method_to_pcol) == 0L) {
+    return(list())
+  }
+
+  labels <- names(method_to_pcol)
+  subsets <- unlist(
+    lapply(seq_along(labels), function(k) combn(labels, k, simplify = FALSE)),
+    recursive = FALSE
+  )
+
+  feature <- res$feature
+
+  ensembles <- lapply(subsets, function(lab_set) {
+    key <- paste(lab_set, collapse = "+")
+    pcols <- unname(method_to_pcol[lab_set])
+    pmat <- as.matrix(res[, pcols, drop = FALSE])
+    p_comb <- DA_CCT_rows(pmat)
+
+    out <- data.frame(
+      feature = feature,
+      Pval = p_comb,
+      adjPval = stats::p.adjust(p_comb, method = p_adj),
+      stringsAsFactors = FALSE
+    )
+    stats::setNames(list(out), key)
+  })
+
+  do.call(c, ensembles)
 }
 
 #########################################################

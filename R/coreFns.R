@@ -2,7 +2,7 @@
 # DAssemble Core DESeq2 #
 #########################
 
-DA_fit_core_DESeq2 <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_DESeq2 <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -15,22 +15,42 @@ DA_fit_core_DESeq2 <- function(features, metadata, expVar, coVars = NULL) {
   # Standard DESeq2 pipeline #
   ############################
   
-  design <- stats::as.formula(paste("~", expVar))
-  x <- DESeq2::DESeqDataSetFromMatrix(countData = t(as.matrix(features)), colData = metadata, design = design)
+  design <- stats::as.formula(paste("~", build_rhs(expVar, coVars)))
+  extra_args <- list(...)
+  dds_args <- extra_args$DESeqDataSetFromMatrix %||% list()
+  sizefactor_args <- extra_args$estimateSizeFactors %||% list()
+  deseq_args <- extra_args$DESeq %||% list()
+  results_args <- extra_args$results %||% list()
+
+  x <- do.call(
+    DESeq2::DESeqDataSetFromMatrix,
+    c(list(countData = t(as.matrix(features)), colData = metadata, design = design), dds_args)
+  )
   geoMeans <- apply(
     DESeq2::counts(x),
     1,
     DA_positive_geometric_mean
   )
-  x <- DESeq2::estimateSizeFactors(x, geoMeans = geoMeans)
-  fit <- DESeq2::DESeq(x)
+  x <- do.call(
+    DESeq2::estimateSizeFactors,
+    c(list(object = x, geoMeans = geoMeans), sizefactor_args)
+  )
+  fit <- do.call(DESeq2::DESeq, c(list(object = x), deseq_args))
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
   #####################################################
   
-  feature<-rownames(stats::coef(fit))
-  pval_core<-DESeq2::results(fit,name=DESeq2::resultsNames(fit)[2])$pvalue
+  feature <- rownames(stats::coef(fit))
+  result_names <- DESeq2::resultsNames(fit)
+  coef_name <- grep(paste0("^", expVar), result_names, value = TRUE)[1]
+  if (is.na(coef_name)) {
+    stop("Could not identify the exposure coefficient in DESeq2 output.")
+  }
+  pval_core <- do.call(
+    DESeq2::results,
+    c(list(object = fit, name = coef_name), results_args)
+  )$pvalue
   return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
@@ -38,7 +58,7 @@ DA_fit_core_DESeq2 <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core edgeR #
 ########################
 
-DA_fit_core_edgeR <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_edgeR <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -51,14 +71,27 @@ DA_fit_core_edgeR <- function(features, metadata, expVar, coVars = NULL) {
   # Standard edgeR pipeline #
   ###########################
   
-  d <- edgeR::DGEList(counts = t(features))
-  d <- edgeR::calcNormFactors(d, method='TMM')
-  design <- stats::model.matrix(stats::as.formula(paste("~", expVar)), metadata)
-  d <- edgeR::estimateGLMCommonDisp(d, design)
-  d <- edgeR::estimateGLMTrendedDisp(d, design)
-  d <- edgeR::estimateGLMTagwiseDisp(d, design)
-  fit <- edgeR::glmFit(d, design)
-  fit<- edgeR::glmLRT(fit, 2)
+  extra_args <- list(...)
+  dgelist_args <- extra_args$DGEList %||% list()
+  norm_args <- extra_args$calcNormFactors %||% list()
+  commondisp_args <- extra_args$estimateGLMCommonDisp %||% list()
+  trendeddisp_args <- extra_args$estimateGLMTrendedDisp %||% list()
+  tagwisedisp_args <- extra_args$estimateGLMTagwiseDisp %||% list()
+  glmfit_args <- extra_args$glmFit %||% list()
+  glmlrt_args <- extra_args$glmLRT %||% list()
+
+  d <- do.call(edgeR::DGEList, c(list(counts = t(features)), dgelist_args))
+  d <- do.call(edgeR::calcNormFactors, c(list(object = d, method = "TMM"), norm_args))
+  design <- stats::model.matrix(stats::as.formula(paste("~", build_rhs(expVar, coVars))), metadata)
+  d <- do.call(edgeR::estimateGLMCommonDisp, c(list(y = d, design = design), commondisp_args))
+  d <- do.call(edgeR::estimateGLMTrendedDisp, c(list(y = d, design = design), trendeddisp_args))
+  d <- do.call(edgeR::estimateGLMTagwiseDisp, c(list(y = d, design = design), tagwisedisp_args))
+  fit <- do.call(edgeR::glmFit, c(list(y = d, design = design), glmfit_args))
+  coef_name <- get_exp_coef_name(metadata, expVar, coVars)
+  fit <- do.call(
+    edgeR::glmLRT,
+    c(list(glmfit = fit, coef = which(colnames(design) == coef_name)), glmlrt_args)
+  )
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -74,7 +107,7 @@ DA_fit_core_edgeR <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core limmaVOOM  #
 #############################
 
-DA_fit_core_limmaVOOM <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_limmaVOOM <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -88,11 +121,16 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar, coVars = NULL) {
   # Standard limmaVOOM pipeline #
   ###############################
   
-  design <- stats::model.matrix(stats::as.formula(paste("~", expVar)), metadata)
+  extra_args <- list(...)
+  voom_args <- extra_args$voom %||% list()
+  lmfit_args <- extra_args$lmFit %||% list()
+  ebayes_args <- extra_args$eBayes %||% list()
+
+  design <- stats::model.matrix(stats::as.formula(paste("~", build_rhs(expVar, coVars))), metadata)
   x<-t(as.matrix(features)+1) # Convert to matrix, round up to nearest integer, and transpose
-  y <- limma::voom(x,design,plot=FALSE)
-  fit <- limma::lmFit(y,design)
-  fit <- limma::eBayes(fit)
+  y <- do.call(limma::voom, c(list(counts = x, design = design, plot = FALSE), voom_args))
+  fit <- do.call(limma::lmFit, c(list(object = y, design = design), lmfit_args))
+  fit <- do.call(limma::eBayes, c(list(fit = fit), ebayes_args))
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -113,7 +151,7 @@ DA_fit_core_limmaVOOM <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core metagenomeSeq    #
 ###################################
 
-DA_fit_core_metagenomeSeq <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_metagenomeSeq <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -126,12 +164,19 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar, coVars = NULL)
   # Standard metagenomeSeq pipeline #
   ###################################
   
-  design <- stats::model.matrix(stats::as.formula(paste("~", expVar)), metadata)
+  extra_args <- list(...)
+  mr_args <- extra_args$newMRexperiment %||% list()
+  stat_args <- extra_args$cumNormStat %||% list()
+  cumnorm_args <- extra_args$cumNorm %||% list()
+  fitzig_args <- extra_args$fitZig %||% list()
+  mrcoefs_args <- extra_args$MRcoefs %||% list()
+
+  design <- stats::model.matrix(stats::as.formula(paste("~", build_rhs(expVar, coVars))), metadata)
   count_table <- t(features) 
-  mgsdata <- metagenomeSeq::newMRexperiment(counts = count_table)
-  mgsp <- metagenomeSeq::cumNormStat(mgsdata)
-  mgsdata <- metagenomeSeq::cumNorm(mgsdata, mgsp)
-  fit <- metagenomeSeq::fitZig(obj=mgsdata,mod=design)
+  mgsdata <- do.call(metagenomeSeq::newMRexperiment, c(list(counts = count_table), mr_args))
+  mgsp <- do.call(metagenomeSeq::cumNormStat, c(list(obj = mgsdata), stat_args))
+  mgsdata <- do.call(metagenomeSeq::cumNorm, c(list(obj = mgsdata, p = mgsp), cumnorm_args))
+  fit <- do.call(metagenomeSeq::fitZig, c(list(obj = mgsdata, mod = design), fitzig_args))
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -145,6 +190,12 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar, coVars = NULL)
     group = 4,
     adjustMethod = "none"
   )
+  if (length(mrcoefs_args) > 0L) {
+    coef_table <- do.call(
+      metagenomeSeq::MRcoefs,
+      c(list(fit = fit, coef = coef_name, number = Inf, group = 4, adjustMethod = "none"), mrcoefs_args)
+    )
+  }
   feature <- rownames(coef_table)
   pval_core <- coef_table$pvalues
   
@@ -156,7 +207,7 @@ DA_fit_core_metagenomeSeq <- function(features, metadata, expVar, coVars = NULL)
 # DAssemble Core MAST  #
 ########################
 
-DA_fit_core_MAST <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_MAST <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -175,15 +226,28 @@ DA_fit_core_MAST <- function(features, metadata, expVar, coVars = NULL) {
   sca <- MAST::FromMatrix(exprsArray = expr)
   cdr2 <- colSums(SummarizedExperiment::assay(sca)>0)
   cd <- SummarizedExperiment::colData(sca)
+  cd <- SummarizedExperiment::colData(sca)
+  for (nm in colnames(metadata)) {
+    cd[[nm]] <- metadata[[nm]]
+  }
   cd$cngeneson <- scale(cdr2)
   cd$condition <- droplevels(factor(metadata[[expVar]]))
   SummarizedExperiment::colData(sca) <- cd
-  zlmCond <- MAST::zlm(~condition + cngeneson, sca)
-  mast_design <- stats::model.matrix(
-    ~condition + cngeneson,
-    data = as.data.frame(SummarizedExperiment::colData(sca))
+  mast_covars <- c(coVars, "cngeneson")
+  mast_formula <- stats::as.formula(
+    paste("~", build_rhs("condition", mast_covars))
   )
-  test.cond <- colnames(mast_design)[2L]
+  extra_args <- list(...)
+  zlm_args <- extra_args$zlm %||% list()
+  lrtest_args <- extra_args$lrTest %||% list()
+
+  zlmCond <- do.call(MAST::zlm, c(list(formula = mast_formula, sca = sca), zlm_args))
+  mast_design <- stats::model.matrix(mast_formula, data = as.data.frame(SummarizedExperiment::colData(sca)))
+  test.cond <- get_exp_coef_name(
+    as.data.frame(SummarizedExperiment::colData(sca)),
+    "condition",
+    mast_covars
+  )
   mast_eval_env <- new.env(parent = asNamespace("MAST"))
   mast_eval_env$test.cond <- test.cond
   mast_eval_env$mast_terms <- colnames(mast_design)
@@ -191,7 +255,7 @@ DA_fit_core_MAST <- function(features, metadata, expVar, coVars = NULL) {
     quote(CoefficientHypothesis(test.cond, mast_terms)),
     envir = mast_eval_env
   )
-  lrt <- MAST::lrTest(zlmCond, test.hypothesis)
+  lrt <- do.call(MAST::lrTest, c(list(object = zlmCond, hypothesis = test.hypothesis), lrtest_args))
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -206,7 +270,7 @@ DA_fit_core_MAST <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core dearseq   #
 ############################
 
-DA_fit_core_dearseq <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_dearseq <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -225,10 +289,19 @@ DA_fit_core_dearseq <- function(features, metadata, expVar, coVars = NULL) {
   # Build covariate matrix if coVars provided
   cov_mat <- build_covariate_matrix(metadata, coVars)
   
-  fit <- dearseq::dear_seq(object = se_raw, variables2test = expVar, covariates = cov_mat,
-                           which_test = which_test, preprocessed = FALSE,
-                           progressbar = FALSE, parallel_comp = FALSE, 
-                           which_weights = "loclin")
+  fit <- do.call(
+    dearseq::dear_seq,
+    c(list(
+      object = se_raw,
+      variables2test = expVar,
+      covariates = cov_mat,
+      which_test = which_test,
+      preprocessed = FALSE,
+      progressbar = FALSE,
+      parallel_comp = FALSE,
+      which_weights = "loclin"
+    ), list(...))
+  )
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -243,7 +316,7 @@ DA_fit_core_dearseq <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core Robseq #
 #########################
 
-DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -264,7 +337,13 @@ DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL) {
   countMat <- t(as.matrix(features))
   meta_rob <- metadata
   meta_rob$Exposure <- metadata[[expVar]]
-  fit <- DAssemble_robust_dge(features = countMat, metadata = meta_rob)
+  fit <- DAssemble_robust_dge(
+    features = countMat,
+    metadata = meta_rob,
+    expVar = "Exposure",
+    coVars = coVars,
+    ...
+  )
   res <- as.data.frame(fit$res)
   
   #####################################################
@@ -280,7 +359,92 @@ DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core MaAsLin2 #
 ###########################
 
-DA_fit_core_Maaslin2 <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_Prevalence <- function(features,
+                                   metadata,
+                                   expVar,
+                                   coVars = NULL,
+                                   random_effects = NULL,
+                                   zero_threshold = 0,
+                                   ...) {
+  formula <- build_model_formula(
+    expVar = expVar,
+    coVars = coVars,
+    random_effects = random_effects,
+    response = "expr"
+  )
+  coef_name <- get_exp_coef_name(metadata, expVar, coVars)
+  has_random_effects <- !is.null(random_effects) && length(random_effects) > 0L
+
+  if (has_random_effects && !requireNamespace("glmmTMB", quietly = TRUE)) {
+    stop("glmmTMB is required for prevalence models with random_effects.")
+  }
+
+  prevalence_stats <- vapply(seq_len(ncol(features)), function(j) {
+    expr <- as.integer(features[, j] > zero_threshold)
+    if (length(unique(expr)) < 2L) {
+      return(c(coef = NA_real_, pval = NA_real_))
+    }
+
+    df <- cbind(metadata, expr = expr)
+    fit <- try(
+      if (has_random_effects) {
+        do.call(
+          glmmTMB::glmmTMB,
+          c(list(formula = formula, family = stats::binomial(), data = df), list(...))
+        )
+      } else {
+        do.call(
+          stats::glm,
+          c(list(formula = formula, family = stats::binomial(), data = df), list(...))
+        )
+      },
+      silent = TRUE
+    )
+
+    if (inherits(fit, "try-error")) {
+      return(c(coef = NA_real_, pval = NA_real_))
+    }
+
+    sm <- try(summary(fit), silent = TRUE)
+    if (inherits(sm, "try-error")) {
+      return(c(coef = NA_real_, pval = NA_real_))
+    }
+
+    coef_table <- if (has_random_effects) sm$coefficients$cond else stats::coef(summary(fit))
+    if (!coef_name %in% rownames(coef_table)) {
+      return(c(coef = NA_real_, pval = NA_real_))
+    }
+
+    p_col <- intersect(c("Pr(>|z|)", "Pr(>|t|)"), colnames(coef_table))[1]
+    if (is.na(p_col)) {
+      return(c(coef = NA_real_, pval = NA_real_))
+    }
+
+    c(
+      coef = coef_table[coef_name, "Estimate"],
+      pval = coef_table[coef_name, p_col]
+    )
+  }, numeric(2))
+
+  coef_prev <- prevalence_stats["coef", ]
+  pval_prev <- prevalence_stats["pval", ]
+  names(coef_prev) <- colnames(features)
+  names(pval_prev) <- colnames(features)
+
+  DA_format_result(
+    feature = colnames(features),
+    expVar = expVar,
+    coef_core = coef_prev,
+    pval_core = pval_prev
+  )
+}
+
+DA_fit_core_Maaslin2 <- function(features,
+                                 metadata,
+                                 expVar,
+                                 coVars = NULL,
+                                 random_effects = NULL,
+                                 ...) {
   
   ########################
   # Package sanity check #
@@ -299,12 +463,14 @@ DA_fit_core_Maaslin2 <- function(features, metadata, expVar, coVars = NULL) {
                             metadata, 
                             output = tmp, 
                             fixed_effects  = c(expVar, coVars),
+                            random_effects = random_effects,
                             min_abundance = -Inf, # No additional filtering
                             save_scatter = FALSE, 
                             save_models = FALSE,
                             plot_heatmap = FALSE, 
                             plot_scatter = FALSE, 
-                            max_significance = 1)
+                            max_significance = 1,
+                            ...)
   res <- fit$results
   if (requireNamespace("logging", quietly = TRUE)) {
     try(logging::removeHandler("logging::writeToFile"), silent = TRUE)
@@ -331,7 +497,13 @@ DA_fit_core_Maaslin2 <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core MaAsLin3 #
 ###########################
 
-DA_fit_core_Maaslin3 <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_Maaslin3 <- function(features,
+                                 metadata,
+                                 expVar,
+                                 coVars = NULL,
+                                 random_effects = NULL,
+                                 prevalence_only = FALSE,
+                                 ...) {
   
   ########################
   # Package sanity check #
@@ -351,18 +523,25 @@ DA_fit_core_Maaslin3 <- function(features, metadata, expVar, coVars = NULL) {
     metadata,
     output = tmp,
     fixed_effects  = c(expVar, coVars),
+    random_effects = random_effects,
     min_prevalence = -Inf, # No additional filtering
+    evaluate_only = if (isTRUE(prevalence_only)) "prevalence" else NULL,
     median_comparison_abundance = TRUE, 
     median_comparison_prevalence = TRUE,
     subtract_median = TRUE,
     plot_summary_plot = FALSE, 
     plot_associations = FALSE, 
-    max_significance = 1)
+    max_significance = 1,
+    ...)
   if (requireNamespace("logging", quietly = TRUE)) {
     try(logging::removeHandler("logging::writeToFile"), silent = TRUE)
   }
   unlink(tmp, recursive = TRUE)
-  res <- as.data.frame(fit$fit_data_abundance$results)
+  res <- if (isTRUE(prevalence_only)) {
+    as.data.frame(fit$fit_data_prevalence$results)
+  } else {
+    as.data.frame(fit$fit_data_abundance$results)
+  }
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -370,7 +549,7 @@ DA_fit_core_Maaslin3 <- function(features, metadata, expVar, coVars = NULL) {
   
   res <- res[res$metadata == expVar, , drop = FALSE]
   feature<-res$feature
-  pval_core <- res$pval_joint
+  pval_core <- if (isTRUE(prevalence_only)) res$pval else res$pval_joint
   return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
@@ -380,7 +559,7 @@ DA_fit_core_Maaslin3 <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core ANCOMBC2 #
 ###########################
 
-DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -402,7 +581,8 @@ DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar, coVars = NULL) {
                            meta_data = metadata, 
                            fix_formula = fix_formula,
                            prv_cut = 0, # No additional filtering
-                           alpha = 1)
+                           alpha = 1,
+                           ...)
   
   #####################################################
   # Standardized output - Feature + Metadata + Pvalue #
@@ -419,7 +599,7 @@ DA_fit_core_ANCOMBC2 <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core ALDEx2 #
 #########################
 
-DA_fit_core_ALDEx2 <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_ALDEx2 <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -437,17 +617,25 @@ DA_fit_core_ALDEx2 <- function(features, metadata, expVar, coVars = NULL) {
   if (is.null(coVars)) {
     
     # No covariates: use the standard aldex() convenience wrapper
-    ald       <- ALDEx2::aldex(t(as.matrix(features)), conditions = as.character(group))
+    ald       <- do.call(
+      ALDEx2::aldex,
+      c(list(reads = t(as.matrix(features)), conditions = as.character(group)), list(...))
+    )
     feature   <- rownames(ald)
     pval_core <- ald$we.ep
     
   } else {
     
     # Covariates present: use aldex.clr + aldex.glm
-    clr_obj <- ALDEx2::aldex.clr(t(as.matrix(features)),
-                                 conds = as.character(group))
+    clr_args <- list(...)
+    glm_args <- clr_args$aldex.glm %||% list()
+    clr_call_args <- clr_args$aldex.clr %||% list()
+    clr_obj <- do.call(
+      ALDEx2::aldex.clr,
+      c(list(reads = t(as.matrix(features)), conds = as.character(group)), clr_call_args)
+    )
     mm      <- model.matrix(as.formula(paste("~", build_rhs(expVar, coVars))), metadata)
-    glm_res <- ALDEx2::aldex.glm(clr_obj, mm)
+    glm_res <- do.call(ALDEx2::aldex.glm, c(list(clr = clr_obj, mm = mm), glm_args))
     
     # Extract p-value column corresponding to expVar
     p_col   <- grep(paste0("^model\\.", expVar, ".*Pr"), colnames(glm_res), value = TRUE)[1]
@@ -471,7 +659,7 @@ DA_fit_core_ALDEx2 <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core LinDA #
 ########################
 
-DA_fit_core_LinDA <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_LinDA <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -488,13 +676,14 @@ DA_fit_core_LinDA <- function(features, metadata, expVar, coVars = NULL) {
   out <- MicrobiomeStat::linda(
     feature.dat = otu,
     meta.dat = metadata,
-    formula = paste("~", expVar),
+    formula = paste("~", build_rhs(expVar, coVars)),
     feature.dat.type = "count",
     prev.filter = 0,
     mean.abund.filter = 0,
     max.abund.filter = 0,
     is.winsor = FALSE,
-    verbose = FALSE
+    verbose = FALSE,
+    ...
   )
   res <- as.data.frame(out$output[[1]])
   
@@ -513,7 +702,7 @@ DA_fit_core_LinDA <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core LOCOM #
 ########################
 
-DA_fit_core_LOCOM <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_LOCOM <- function(features, metadata, expVar, coVars = NULL, ...) {
   
   ########################
   # Package sanity check #
@@ -534,7 +723,8 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar, coVars = NULL) {
     Y = Y,
     seed = 1234,
     filter = FALSE,
-    verbose = FALSE
+    verbose = FALSE,
+    ...
   )
   
   #####################################################
@@ -554,7 +744,12 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Core Tweedieverse #
 ##############################
 
-DA_fit_core_Tweedieverse <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_core_Tweedieverse <- function(features,
+                                     metadata,
+                                     expVar,
+                                     coVars = NULL,
+                                     random_effects = NULL,
+                                     ...) {
   
   ########################
   # Package sanity check #
@@ -578,11 +773,13 @@ DA_fit_core_Tweedieverse <- function(features, metadata, expVar, coVars = NULL) 
     output = NULL,
     max_significance = 1,
     abd_threshold = -Inf, # No additional filtering
-    fixed_effects = expVar,
+    fixed_effects = paste(c(expVar, coVars), collapse = ","),
+    random_effects = if (length(random_effects) > 0L) paste(random_effects, collapse = ",") else NULL,
     adjust_offset = TRUE,
     median_comparison = FALSE,
     median_subtraction = FALSE,
-    na.action = na.pass
+    na.action = na.pass,
+    ...
   )
   
   

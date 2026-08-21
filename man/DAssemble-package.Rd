@@ -20,4 +20,15 @@ Kolmogorov-Smirnov, and presence-absence logistic regression.
 \seealso{
 \code{\link[=DAssemble]{DAssemble()}}
 }
+\author{
+\strong{Maintainer}: Nalin Arora \email{naa4050@med.cornell.edu} (\href{https://orcid.org/0009-0009-1340-688X}{ORCID})
+
+Authors:
+\itemize{
+  \item Nalin Arora \email{naa4050@med.cornell.edu} (\href{https://orcid.org/0009-0009-1340-688X}{ORCID})
+  \item Himel Mallick \email{him4004@med.cornell.edu}
+  \item Ziyu Liu \email{lclcencen@gmail.com}
+}
+
+}
 \keyword{package}

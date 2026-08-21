@@ -43,6 +43,17 @@ test_that("DAssemble validates requested methods and inputs", {
     DAssemble(toy$features, non_binary, enhancers = "WLX"),
     "expVar must be binary"
   )
+
+  toy$metadata$subject <- factor(rep(seq_len(4), each = 2))
+  expect_error(
+    DAssemble(
+      toy$features,
+      toy$metadata,
+      core_method = "edgeR",
+      random_effects = "subject"
+    ),
+    "longitudinal-compatible core methods"
+  )
 })
 
 test_that("normalization returns expected shapes and scale factors", {
@@ -159,6 +170,130 @@ test_that("single enhancer DAssemble bypasses CCT and keeps p-values", {
   expect_equal(res$res$qval, stats::p.adjust(res$res$pval_WLX, method = "BH"))
 })
 
+test_that("DAssemble supports longitudinal LR through random_effects", {
+  toy <- make_toy_data()
+  toy$metadata$subject <- factor(rep(seq_len(4), each = 2))
+
+  testthat::local_mocked_bindings(
+    DA_fit_enhancer_LR = function(features,
+                                  metadata,
+                                  expVar,
+                                  coVars = NULL,
+                                  random_effects = NULL) {
+      expect_equal(random_effects, "subject")
+      data.frame(
+        feature = colnames(features),
+        metadata = expVar,
+        pval_LR = rep(0.25, ncol(features)),
+        stringsAsFactors = FALSE
+      )
+    },
+    .package = "DAssemble"
+  )
+
+  res <- DAssemble(
+    features = toy$features,
+    metadata = toy$metadata,
+    core_method = NULL,
+    enhancers = "LR",
+    expVar = "group",
+    random_effects = "subject",
+    p_adj = "BH"
+  )
+
+  expect_equal(res$res$pval_joint, res$res$pval_LR)
+})
+
+test_that("DAssemble supports longitudinal MaAsLin3 core through random_effects", {
+  toy <- make_toy_data()
+  toy$metadata$subject <- factor(rep(seq_len(4), each = 2))
+
+  testthat::local_mocked_bindings(
+    DA_fit_core_Maaslin3 = function(features,
+                                    metadata,
+                                    expVar,
+                                    coVars = NULL,
+                                    random_effects = NULL,
+                                    prevalence_only = FALSE) {
+      expect_equal(random_effects, "subject")
+      expect_true(is.null(prevalence_only) || identical(prevalence_only, FALSE))
+      data.frame(
+        feature = colnames(features),
+        metadata = expVar,
+        pval_core = rep(0.15, ncol(features)),
+        stringsAsFactors = FALSE
+      )
+    },
+    .package = "DAssemble"
+  )
+
+  res <- DAssemble(
+    features = toy$features,
+    metadata = toy$metadata,
+    core_method = "Maaslin3",
+    expVar = "group",
+    random_effects = "subject",
+    p_adj = "BH"
+  )
+
+  expect_equal(res$res$pval_joint, res$res$pval_core)
+})
+
+test_that("DAssemble forwards method_args to core and enhancer wrappers", {
+  toy <- make_toy_data()
+
+  testthat::local_mocked_bindings(
+    DA_fit_core_Maaslin2 = function(features,
+                                    metadata,
+                                    expVar,
+                                    coVars = NULL,
+                                    random_effects = NULL,
+                                    normalization = "TSS",
+                                    transform = "LOG",
+                                    ...) {
+      expect_equal(normalization, "CLR")
+      expect_equal(transform, "NONE")
+      data.frame(
+        feature = colnames(features),
+        metadata = expVar,
+        pval_core = rep(0.2, ncol(features)),
+        stringsAsFactors = FALSE
+      )
+    },
+    DA_fit_enhancer_LR = function(features,
+                                  metadata,
+                                  expVar,
+                                  coVars = NULL,
+                                  random_effects = NULL,
+                                  family = "default",
+                                  ...) {
+      expect_equal(family, "binomial")
+      data.frame(
+        feature = colnames(features),
+        metadata = expVar,
+        pval_LR = rep(0.3, ncol(features)),
+        stringsAsFactors = FALSE
+      )
+    },
+    .package = "DAssemble"
+  )
+
+  res <- DAssemble(
+    features = toy$features,
+    metadata = toy$metadata,
+    core_method = "Maaslin2",
+    enhancers = "LR",
+    expVar = "group",
+    method_args = list(
+      core = list(transform = "LOG"),
+      Maaslin2 = list(normalization = "CLR", transform = "NONE"),
+      enhancer = list(family = "binomial")
+    )
+  )
+
+  expect_true(all(c("pval_core", "pval_LR", "pval_joint") %in% names(res$res)))
+})
+
 test_that("DAssemble accepts MultiAssayExperiment input", {
   skip_if_not_installed("MultiAssayExperiment")
   skip_if_not_installed("SummarizedExperiment")
@@ -215,6 +350,7 @@ test_that("MultiAssayExperiment input requires assay_name for multiple experimen
   )
   expect_equal(nrow(res$res), ncol(toy$features))
 })
+
 
 test_that("LOCOM wrapper uses LOCOM2 and returns standardized output", {
   skip_if_not_installed("LOCOM2")

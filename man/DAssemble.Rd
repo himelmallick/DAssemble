@@ -11,6 +11,8 @@ DAssemble(
   enhancers = NULL,
   expVar = "group",
   coVars = NULL,
+  random_effects = NULL,
+  method_args = NULL,
   assay_name = NULL,
   p_adj = "BY",
   enhancer_norm = "TSS",
@@ -37,6 +39,15 @@ in rows and features in columns.}
 
 \item{coVars}{Optional character vector naming covariates to include in
 covariate-aware core methods and logistic-regression enhancers.}
+
+\item{random_effects}{Optional character vector naming grouping variables for
+random intercepts in longitudinal-compatible methods.}
+
+\item{method_args}{Optional named list of method-specific control arguments.
+Use \code{method_args$core} for arguments shared by the selected core method,
+\code{method_args$enhancer} for arguments shared by enhancers, and/or method
+names such as \code{method_args$Maaslin3} or \code{method_args$LR} for
+method-specific overrides.}
 
 \item{assay_name}{Name of the assay/experiment to use when \code{features} is a
 \code{MultiAssayExperiment}. Required when the object contains multiple
@@ -81,8 +92,11 @@ result <- DAssemble(
   features = features,
   metadata = metadata,
   core_method = NULL,
-  enhancers = "WLX",
-  expVar = "group"
+  enhancers = "LR",
+  expVar = "group",
+  method_args = list(
+    LR = list(control = glm.control(maxit = 50))
+  )
 )
 head(result$res)
 

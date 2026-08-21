@@ -2,7 +2,12 @@
 # DAssemble Enhancer Logistic Regression (LR) #
 ###############################################
 
-DA_fit_enhancer_LR <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_enhancer_LR <- function(features,
+                               metadata,
+                               expVar,
+                               coVars = NULL,
+                               random_effects = NULL,
+                               ...) {
   
   ########################
   # Standard LR pipeline #
@@ -17,8 +22,18 @@ DA_fit_enhancer_LR <- function(features, metadata, expVar, coVars = NULL) {
   log_offset <- log(offset_raw)
   
   # Build formula with expVar only
-  formula <- as.formula(paste("expr ~", build_rhs(expVar, coVars)))
+  formula <- build_model_formula(
+    expVar = expVar,
+    coVars = coVars,
+    random_effects = random_effects,
+    response = "expr"
+  )
   coef_name <- get_exp_coef_name(metadata, expVar, coVars)
+  has_random_effects <- !is.null(random_effects) && length(random_effects) > 0L
+
+  if (has_random_effects && !requireNamespace("glmmTMB", quietly = TRUE)) {
+    stop("glmmTMB is required for LR with random_effects.")
+  }
   
   ##################
   # Per-feature LR #
@@ -27,12 +42,34 @@ DA_fit_enhancer_LR <- function(features, metadata, expVar, coVars = NULL) {
   lr_stats <- vapply(seq_len(ncol(features)), function(j) {
     expr <- as.integer(features[, j] > 0)
     df   <- cbind(metadata, expr = expr)
-    fit  <- try(glm(formula = formula, family = binomial(),
-                    data = df, offset = log_offset), silent = TRUE)
+    if (length(unique(expr)) < 2L) {
+      return(c(coef = NA_real_, pval = NA_real_))
+    }
+    fit  <- try(
+      if (has_random_effects) {
+        do.call(
+          glmmTMB::glmmTMB,
+          c(list(formula = formula, family = stats::binomial(), data = df, offset = log_offset), list(...))
+        )
+      } else {
+        do.call(
+          glm,
+          c(list(formula = formula, family = binomial(), data = df, offset = log_offset), list(...))
+        )
+      },
+      silent = TRUE
+    )
     if (!inherits(fit, "try-error")) {
-      sm <- coef(summary(fit))
+      sm <- if (has_random_effects) {
+        summary(fit)$coefficients$cond
+      } else {
+        coef(summary(fit))
+      }
       if (coef_name %in% rownames(sm)) {
-        return(c(coef = sm[coef_name, 1], pval = sm[coef_name, 4]))
+        p_col <- intersect(c("Pr(>|z|)", "Pr(>|t|)"), colnames(sm))[1]
+        if (!is.na(p_col)) {
+          return(c(coef = sm[coef_name, "Estimate"], pval = sm[coef_name, p_col]))
+        }
       }
     }
     c(coef = NA_real_, pval = NA_real_)
@@ -60,7 +97,7 @@ DA_fit_enhancer_LR <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Enhancer Kolmogorov–Smirnov (KS) #
 ##############################################
 
-DA_fit_enhancer_KS <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_enhancer_KS <- function(features, metadata, expVar, coVars = NULL, ...) {
 
   ########################
   # Standard KS pipeline #
@@ -78,7 +115,7 @@ DA_fit_enhancer_KS <- function(features, metadata, expVar, coVars = NULL) {
   pval_KS <- vapply(seq_len(ncol(features)), function(j) {
     x1 <- features[g1, j]
     x2 <- features[g2, j]
-    tst <- try(stats::ks.test(x1, x2), silent = TRUE)
+    tst <- try(do.call(stats::ks.test, c(list(x = x1, y = x2), list(...))), silent = TRUE)
     if (inherits(tst, "try-error")) {
       NA_real_
     } else {
@@ -100,7 +137,7 @@ DA_fit_enhancer_KS <- function(features, metadata, expVar, coVars = NULL) {
 # DAssemble Enhancer Wilcoxon Rank Sum (WLX) #
 ##############################################
 
-DA_fit_enhancer_WLX <- function(features, metadata, expVar, coVars = NULL) {
+DA_fit_enhancer_WLX <- function(features, metadata, expVar, coVars = NULL, ...) {
  
   #########################
   # Standard WLX pipeline #
@@ -118,7 +155,7 @@ DA_fit_enhancer_WLX <- function(features, metadata, expVar, coVars = NULL) {
   pval_WLX <- vapply(seq_len(ncol(features)), function(j) {
     x1 <- features[g1, j]
     x2 <- features[g2, j]
-    tst <- try(stats::wilcox.test(x1, x2), silent = TRUE)
+    tst <- try(do.call(stats::wilcox.test, c(list(x = x1, y = x2), list(...))), silent = TRUE)
     if (inherits(tst, "try-error")) {
       NA_real_
     } else {

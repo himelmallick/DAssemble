@@ -22,6 +22,13 @@
 #'   `metadata` or `colData(features)`.
 #' @param coVars Optional character vector naming covariates to include in
 #'   covariate-aware core methods and logistic-regression enhancers.
+#' @param random_effects Optional character vector naming grouping variables for
+#'   random intercepts in longitudinal-compatible methods.
+#' @param method_args Optional named list of method-specific control arguments.
+#'   Use `method_args$core` for arguments shared by the selected core method,
+#'   `method_args$enhancer` for arguments shared by enhancers, and/or method
+#'   names such as `method_args$Maaslin3` or `method_args$LR` for
+#'   method-specific overrides.
 #' @param p_adj Multiple-testing correction method passed to [stats::p.adjust].
 #' @param enhancer_norm Normalization method for enhancer tests. One of
 #'   `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`.
@@ -50,8 +57,11 @@
 #'   features = features,
 #'   metadata = metadata,
 #'   core_method = NULL,
-#'   enhancers = "WLX",
-#'   expVar = "group"
+#'   enhancers = "LR",
+#'   expVar = "group",
+#'   method_args = list(
+#'     LR = list(control = glm.control(maxit = 50))
+#'   )
 #' )
 #' head(result$res)
 #'
@@ -62,6 +72,8 @@ DAssemble <- function(features,
                       enhancers = NULL,
                       expVar = "group",
                       coVars = NULL,
+                      random_effects = NULL,
+                      method_args = NULL,
                       assay_name = NULL,
                       p_adj = "BY",
                       enhancer_norm = "TSS",
@@ -87,7 +99,8 @@ DAssemble <- function(features,
     "DESeq2", "edgeR", "limmaVOOM", "dearseq",
     "metagenomeSeq", "MAST", "Tweedieverse",
     "Maaslin2", "Maaslin3", "LOCOM",
-    "LinDA", "ANCOMBC2", "Robseq", "ALDEx2"
+    "LinDA", "ANCOMBC2", "Robseq", "ALDEx2",
+    "Prevalence"
   )
   
   if (is.null(core_method) || identical(core_method, "none")) {
@@ -207,6 +220,35 @@ DAssemble <- function(features,
       "WLX and KS ignore coVars, so any ensemble including them is only partially covariate-adjusted."
     )
   }
+
+  if (!is.null(random_effects)) {
+    random_effects <- unique(random_effects)
+    bad <- setdiff(random_effects, colnames(metadata))
+    if (length(bad)) {
+      stop("random_effects not found in metadata: ", toString(bad))
+    }
+    if (expVar %in% random_effects) {
+      stop("expVar cannot also appear in random_effects.")
+    }
+  }
+
+  if (length(random_effects) > 0L) {
+    longitudinal_core <- c("Prevalence", "Maaslin2", "Maaslin3", "Tweedieverse")
+    unsupported_core <- setdiff(core_method, longitudinal_core)
+    unsupported_enh <- setdiff(enh_list, "LR")
+    if (length(unsupported_core) > 0L) {
+      stop(
+        "random_effects are only supported for longitudinal-compatible core methods. ",
+        "Unsupported core_method: ", paste(unsupported_core, collapse = ", ")
+      )
+    }
+    if (length(unsupported_enh) > 0L) {
+      stop(
+        "random_effects are only supported with enhancer = 'LR'. ",
+        "Unsupported enhancers: ", paste(unsupported_enh, collapse = ", ")
+      )
+    }
+  }
   
   ###############################################
   # 4) Tweedieverse: optional special norm      #
@@ -233,12 +275,23 @@ DAssemble <- function(features,
   if (!is.null(core_method)) {
     core_fun <- paste0("DA_fit_core_", core_method)
     
-    res_core <- DA_do_call(core_fun, list(
+    core_args <- list(
       features = features,
       metadata = metadata,
       expVar   = expVar,
       coVars   = coVars
-    ))
+    )
+    if (core_method %in% c("Prevalence", "Maaslin2", "Maaslin3", "Tweedieverse")) {
+      core_args$random_effects <- random_effects
+    }
+    if (core_method == "Prevalence") {
+      core_args$zero_threshold <- 0
+    }
+    core_args <- c(
+      core_args,
+      resolve_method_args(method_args, core_method, class = "core")
+    )
+    res_core <- DA_do_call(core_fun, core_args)
     
     res_core <- normalize_result_features(
       res_core,
@@ -291,7 +344,20 @@ DAssemble <- function(features,
         feat_use <- feat_norm_for_LR
       }
       
-      tmp <- do.call(fun, list(feat_use$features, feat_use$metadata, expVar, coVars))
+      enhancer_args <- list(
+        features = feat_use$features,
+        metadata = feat_use$metadata,
+        expVar = expVar,
+        coVars = coVars
+      )
+      if (e == "LR") {
+        enhancer_args$random_effects <- random_effects
+      }
+      enhancer_args <- c(
+        enhancer_args,
+        resolve_method_args(method_args, e, class = "enhancer")
+      )
+      tmp <- do.call(fun, enhancer_args)
       
       tmp <- normalize_result_features(
         tmp,

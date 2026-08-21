@@ -51,6 +51,135 @@ rows and features in columns, paired with a `metadata` data frame with matching
 sample row names. The exposure variable supplied through `expVar` must be
 binary.
 
+The main `DAssemble()` function also supports:
+
+- multiple adjustment covariates through `coVars`
+- repeated-measures / longitudinal designs through `random_effects`
+- open-ended method-specific controls through `method_args`
+
+These arguments are available only for methods whose wrappers can express the
+corresponding model directly. For unsupported methods, DAssemble stops with a
+clear error rather than fitting a mis-specified model.
+
+# Main API
+
+The primary entry point is:
+
+```{r main-signature, eval=FALSE}
+DAssemble(
+  features,
+  metadata = NULL,
+  core_method = NULL,
+  enhancers = NULL,
+  expVar = "group",
+  coVars = NULL,
+  random_effects = NULL,
+  method_args = NULL,
+  assay_name = NULL,
+  p_adj = "BY",
+  enhancer_norm = "TSS",
+  return_components = TRUE,
+  return_subensembles = FALSE
+)
+```
+
+`method_args` is a named control list used to forward additional arguments to
+underlying methods. The usual pattern is:
+
+- `method_args$core` for arguments shared by the selected core method
+- `method_args$enhancer` for arguments shared by the selected enhancers
+- `method_args$<MethodName>` for method-specific overrides
+
+Wrappers with multi-stage internals can also accept subcall-specific entries.
+For example, `method_args$DESeq2` may contain items such as `DESeq`,
+`results`, or `estimateSizeFactors`, while `method_args$edgeR` may contain
+items such as `glmFit` or `glmLRT`.
+
+```{r method-args-example, eval=FALSE}
+res <- DAssemble(
+  features = features,
+  metadata = metadata,
+  core_method = "Maaslin2",
+  enhancers = "LR",
+  expVar = "group",
+  method_args = list(
+    core = list(transform = "LOG"),
+    Maaslin2 = list(normalization = "CLR", transform = "NONE"),
+    enhancer = list(family = "binomial"),
+    LR = list(control = glm.control(maxit = 100))
+  )
+)
+```
+
+# Supported methods
+
+Core methods currently available in `DAssemble()` include:
+
+- `Prevalence`
+- `DESeq2`
+- `edgeR`
+- `limmaVOOM`
+- `metagenomeSeq`
+- `MAST`
+- `dearseq`
+- `ALDEx2`
+- `LinDA`
+- `LOCOM`
+- `Maaslin2`
+- `Maaslin3`
+- `Tweedieverse`
+- `Robseq`
+- `ANCOMBC2`
+
+Enhancers currently available are:
+
+- `WLX`
+- `LR`
+- `KS`
+
+# Covariate and longitudinal support
+
+The current implementation supports multiple covariates (`coVars`) for the
+following methods:
+
+| Method | Multiple covariates |
+|:--|:--|
+| Prevalence | Yes |
+| DESeq2 | Yes |
+| edgeR | Yes |
+| limmaVOOM | Yes |
+| metagenomeSeq | Yes |
+| MAST | Yes |
+| dearseq | Yes |
+| ALDEx2 | Yes |
+| LinDA | Yes |
+| Maaslin2 | Yes |
+| Maaslin3 | Yes |
+| Tweedieverse | Yes |
+| Robseq | Yes |
+| ANCOMBC2 | Yes |
+| LR | Yes |
+| WLX | No |
+| KS | No |
+| LOCOM | No |
+
+When `random_effects` is supplied, the following methods are currently treated
+as longitudinal-compatible:
+
+| Method | Longitudinal support |
+|:--|:--|
+| Prevalence | Yes |
+| Maaslin2 | Yes |
+| Maaslin3 | Yes |
+| Tweedieverse | Yes |
+| LR | Yes |
+
+All other methods should be treated as cross-sectional only in the current
+package implementation.
+
+`Maaslin3` is used through its standard package pathway in `DAssemble()` and
+is not forced into a prevalence-only mode.
+
 # Installation
 
 Install `DAssemble` from Bioconductor with `BiocManager`:
@@ -92,8 +221,17 @@ res <- DAssemble::DAssemble(
   core_method = "DESeq2",
   enhancers = c("WLX", "LR"),
   expVar = "dex",
+  coVars = c("cell", "albut"),
   p_adj = "BH",
   enhancer_norm = "tmm",
+  method_args = list(
+    DESeq2 = list(
+      DESeq = list(fitType = "local")
+    ),
+    LR = list(
+      control = glm.control(maxit = 100)
+    )
+  ),
   return_components = TRUE,
   return_subensembles = TRUE
 )
@@ -102,9 +240,32 @@ head(res$res)
 names(res$components)
 ```
 
-This analysis combines DESeq2 p-values with Wilcoxon and logistic-regression
-enhancer p-values. The combined results are returned in `res$res`, and the
-per-method outputs are available in `res$components`.
+This analysis adjusts for `cell` and `albut`, combines DESeq2 p-values with
+Wilcoxon and logistic-regression enhancer p-values, and forwards example
+control arguments through `method_args`. The combined results are returned in
+`res$res`, and the per-method outputs are available in `res$components`.
+
+# Longitudinal example
+
+The example below illustrates a longitudinal-style call using a
+longitudinal-compatible core method and the `LR` enhancer.
+
+```{r longitudinal-example, eval=FALSE}
+res <- DAssemble::DAssemble(
+  features = features,
+  metadata = metadata,
+  core_method = "Maaslin3",
+  enhancers = "LR",
+  expVar = "group",
+  coVars = c("age", "sex", "batch"),
+  random_effects = "subject",
+  method_args = list(
+    Maaslin3 = list(max_significance = 0.25),
+    LR = list(control = glm.control(maxit = 100))
+  ),
+  p_adj = "BH"
+)
+```
 
 # Microbiome Example
 

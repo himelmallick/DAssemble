@@ -82,6 +82,7 @@ cat("All required packages installed and loaded successfully.\n")
 
 | Method       | Package(s)                      |
 |-------------|----------------------------------|
+| Prevalence  | Internal DAssemble logistic presence/absence model using `glm` / `glmmTMB` |
 | DESeq2      | DESeq2                          |
 | edgeR       | edgeR                           |
 | limma-voom  | limma + edgeR                   |
@@ -128,10 +129,21 @@ For example, you might call:
 
 ```r
 # core + two enhancers
-DAssemble(X, metadata, core_method = "DESeq2", enhancers = c("WLX", "LR"), expVar = "group")
+DAssemble(
+  X, metadata,
+  core_method = "DESeq2",
+  enhancers = c("WLX", "LR"),
+  expVar = "group",
+  coVars = c("batch", "age")
+)
 
 # enhancer‑only, all three
-DAssemble(X, metadata, core_method = NULL, enhancers = c("WLX", "LR", "KS"), expVar = "group")
+DAssemble(
+  X, metadata,
+  core_method = NULL,
+  enhancers = c("WLX", "LR", "KS"),
+  expVar = "group"
+)
 ```
 
 When `return_subensembles = TRUE` the returned `$ensembles` element will
@@ -160,7 +172,7 @@ pval_<TAG>  # numeric, where <TAG> is WLX / LR / KS
 Within `DAssemble()`, you usually specify enhancers using their short tags:
 
 ```r
-enhancers = c("WLX", "LR", "KS")  # at most two at a time are currently supported
+enhancers = c("WLX", "LR", "KS")
 ```
 
 DAssemble then routes to the corresponding `DA_fit_enhancer_*()` functions.
@@ -179,6 +191,9 @@ DAssemble(
   core_method   = NULL,
   enhancers     = NULL,
   expVar        = "group",
+  coVars        = NULL,
+  random_effects = NULL,
+  method_args   = NULL,
   assay_name    = NULL,
   p_adj         = "BY",
   enhancer_norm = "TSS",
@@ -192,8 +207,11 @@ Key arguments:
 - `features` – a `MultiAssayExperiment`, or a data frame with samples in rows and features in columns
 - `metadata` – sample metadata data frame; leave as `NULL` when `features` is a `MultiAssayExperiment`
 - `expVar` – name (or column) of the primary exposure variable (binary, 2 levels)
+- `coVars` – optional character vector of adjustment covariates for compatible methods
+- `random_effects` – optional character vector of grouping variables for longitudinal-compatible methods
+- `method_args` – optional named list of method-specific control arguments passed through to the selected core method and/or enhancers
 - `assay_name` – experiment name to use when `features` is a `MultiAssayExperiment`; required when multiple experiments are present
-- `core_method` – one of the supported core method names (see above), or `NULL` / `"none"` to run an **enhancer-only** analysis
+- `core_method` – one of the supported core method names (including `"Prevalence"`), or `NULL` / `"none"` to run an **enhancer-only** analysis
 - `enhancers` – `NULL` or a subset of `c("WLX", "LR", "KS")`
 - `p_adj` – multiple testing correction method (passed to `p.adjust`)
 - `enhancer_norm` – normalization used by enhancers, one of `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`
@@ -205,6 +223,42 @@ The main output includes:
 - `$results` – data frame of features with ensemble p-values (raw and adjusted)
 - `$components` – (optional) list of per-method result tables
 - `$ensembles` – (optional) table of sub-ensemble CCT results
+
+### Passing through method-specific options
+
+`DAssemble()` supports an open-ended `method_args` control list so users can
+pass additional arguments to underlying methods without the package needing to
+enumerate every possible option in the top-level API.
+
+The expected pattern is:
+
+- `method_args$core` for arguments shared by the selected core method
+- `method_args$enhancer` for arguments shared by the requested enhancers
+- `method_args$<MethodName>` for method-specific overrides such as
+  `method_args$Maaslin3` or `method_args$LR`
+
+For wrappers with multiple internal stages, `method_args$<MethodName>` can also
+target subcalls. For example, the DESeq2 wrapper can receive entries such as
+`DESeq`, `results`, or `estimateSizeFactors`, while the edgeR wrapper can
+receive entries such as `glmFit` or `glmLRT`.
+
+Example:
+
+```r
+res <- DAssemble(
+  features = features,
+  metadata = metadata,
+  core_method = "Maaslin2",
+  enhancers = "LR",
+  expVar = "group",
+  method_args = list(
+    core = list(transform = "LOG"),
+    Maaslin2 = list(normalization = "CLR", transform = "NONE"),
+    enhancer = list(family = "binomial"),
+    LR = list(control = glm.control(maxit = 100))
+  )
+)
+```
 
 ---
 
@@ -276,8 +330,17 @@ res <- DAssemble(
   core_method = "DESeq2",
   enhancers   = c("WLX", "LR"),
   expVar      = "dex",
+  coVars      = c("cell", "albut"),
   p_adj       = "BH",
   enhancer_norm = "tmm",
+  method_args = list(
+    DESeq2 = list(
+      DESeq = list(fitType = "local")
+    ),
+    LR = list(
+      control = glm.control(maxit = 100)
+    )
+  ),
   return_components = TRUE,
   return_subensembles = TRUE
 )
@@ -289,9 +352,11 @@ names(res$components)
 ```
 
 This call normalizes the counts using the TMM scheme (`enhancer_norm = "tmm"`),
-combines DESeq2 with the Wilcoxon and logistic regression enhancers, and
+adjusts for `cell` and `albut`, combines DESeq2 with the Wilcoxon and logistic regression enhancers, and
 returns the full set of sub‑ensembles.  You can access individual
-method outputs through the `$components` element of the result.
+method outputs through the `$components` element of the result.  The
+`method_args` list illustrates how to forward extra options to the
+underlying DESeq2 and logistic-regression wrappers.
 
 ### Microbiome: Global Patterns study
 
@@ -352,3 +417,77 @@ compositional, we use centered log‑ratio (CLR) normalization
 (`enhancer_norm = "clr"`).  The `$components` element contains the
 individual Wilcoxon, logistic regression and KS results, while
 `$ensembles` summarises every sub‑combination of the three enhancers.
+
+---
+
+## Covariate and longitudinal support
+
+The main `DAssemble()` entry point now supports both multiple covariates
+(`coVars`) and repeated-measures / longitudinal designs
+(`random_effects`) for the subset of methods whose wrappers can express
+those models directly.
+
+### Multiple covariates
+
+The following methods support `coVars` in the current implementation:
+
+| Method | Multiple covariates |
+|--------|---------------------|
+| Prevalence | Yes |
+| DESeq2 | Yes |
+| edgeR | Yes |
+| limmaVOOM | Yes |
+| metagenomeSeq | Yes |
+| MAST | Yes |
+| dearseq | Yes |
+| ALDEx2 | Yes |
+| LinDA | Yes |
+| Maaslin2 | Yes |
+| Maaslin3 | Yes |
+| Tweedieverse | Yes |
+| Robseq | Yes |
+| ANCOMBC2 | Yes |
+| LR | Yes |
+| WLX | No |
+| KS | No |
+| LOCOM | No |
+
+### Longitudinal / repeated-measures
+
+When `random_effects` is supplied, `DAssemble()` currently supports the
+following longitudinal-compatible methods:
+
+| Method | Longitudinal support |
+|--------|----------------------|
+| Prevalence | Yes |
+| Maaslin2 | Yes |
+| Maaslin3 | Yes |
+| Tweedieverse | Yes |
+| LR | Yes |
+
+All other current methods are treated as non-longitudinal in
+`DAssemble()`. If `random_effects` is provided with an unsupported core
+or enhancer, DAssemble will stop with a clear error instead of fitting a
+mis-specified model.
+
+### Longitudinal example
+
+`Maaslin3` is treated through its standard package pathway in
+`DAssemble()`; it is not forced into a prevalence-only mode.
+
+```r
+res <- DAssemble(
+  features = features,
+  metadata = metadata,
+  core_method = "Maaslin3",
+  enhancers = "LR",
+  expVar = "group",
+  coVars = c("age", "sex", "batch"),
+  random_effects = "subject",
+  method_args = list(
+    Maaslin3 = list(max_significance = 0.25),
+    LR = list(control = glm.control(maxit = 100))
+  ),
+  p_adj = "BH"
+)
+```
