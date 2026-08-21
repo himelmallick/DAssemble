@@ -355,9 +355,94 @@ DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL, ...) {
   return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
-###########################
-# DAssemble Core MaAsLin2 #
-###########################
+##############################
+# DAssemble Core Prevalence  #
+##############################
+
+DA_prevalence_augmentation_weight <- function(formula, df) {
+  rhs_formula <- stats::delete.response(stats::terms(formula))
+  n_predictors <- ncol(stats::model.matrix(rhs_formula, data = df))
+  n_samples <- nrow(df)
+  n_predictors / (2 * n_samples)
+}
+
+DA_prevalence_augment_data <- function(formula,
+                                       df,
+                                       response = "expr",
+                                       weights = NULL) {
+  n_samples <- nrow(df)
+  if (is.null(weights)) {
+    weights <- rep(1, n_samples)
+  }
+  if (length(weights) != n_samples) {
+    stop("weights must have length equal to the number of samples.")
+  }
+
+  augmentation_weight <- DA_prevalence_augmentation_weight(formula, df)
+  df_zero <- df
+  df_one <- df
+  df_zero[[response]] <- 0L
+  df_one[[response]] <- 1L
+
+  list(
+    data = rbind(df, df_zero, df_one),
+    weights = c(
+      weights,
+      rep(augmentation_weight, n_samples),
+      rep(augmentation_weight, n_samples)
+    )
+  )
+}
+
+DA_prevalence_fit_augmented <- function(formula,
+                                        df,
+                                        has_random_effects = FALSE,
+                                        ...) {
+  extra_args <- list(...)
+  user_weights <- extra_args$weights
+  extra_args$weights <- NULL
+  augmented <- DA_prevalence_augment_data(
+    formula = formula,
+    df = df,
+    weights = user_weights
+  )
+
+  fit_fun <- if (isTRUE(has_random_effects)) glmmTMB::glmmTMB else stats::glm
+  do.call(
+    fit_fun,
+    c(
+      list(
+        formula = formula,
+        family = stats::binomial(),
+        data = augmented$data,
+        weights = augmented$weights
+      ),
+      extra_args
+    )
+  )
+}
+
+DA_prevalence_fit_firth <- function(formula, df, ...) {
+  if (!requireNamespace("brglm2", quietly = TRUE)) {
+    stop(
+      "brglm2 is required for separation_method = 'firth' in the Prevalence core."
+    )
+  }
+
+  do.call(
+    stats::glm,
+    c(
+      list(
+        formula = formula,
+        family = stats::binomial(),
+        data = df,
+        method = brglm2::brglmFit,
+        type = "AS_mean"
+      ),
+      list(...)
+    )
+  )
+}
 
 DA_fit_core_Prevalence <- function(features,
                                    metadata,
@@ -366,6 +451,12 @@ DA_fit_core_Prevalence <- function(features,
                                    random_effects = NULL,
                                    zero_threshold = 0,
                                    ...) {
+  extra_args <- list(...)
+  separation_method <- extra_args$separation_method %||% "augment"
+  extra_args$separation_method <- NULL
+  if (!separation_method %in% c("augment", "firth")) {
+    stop("Prevalence separation_method must be one of 'augment' or 'firth'.")
+  }
   formula <- build_model_formula(
     expVar = expVar,
     coVars = coVars,
@@ -378,6 +469,9 @@ DA_fit_core_Prevalence <- function(features,
   if (has_random_effects && !requireNamespace("glmmTMB", quietly = TRUE)) {
     stop("glmmTMB is required for prevalence models with random_effects.")
   }
+  if (has_random_effects && identical(separation_method, "firth")) {
+    stop("Prevalence separation_method = 'firth' is only supported without random_effects.")
+  }
 
   prevalence_stats <- vapply(seq_len(ncol(features)), function(j) {
     expr <- as.integer(features[, j] > zero_threshold)
@@ -386,20 +480,30 @@ DA_fit_core_Prevalence <- function(features,
     }
 
     df <- cbind(metadata, expr = expr)
-    fit <- try(
-      if (has_random_effects) {
+    fit <- if (has_random_effects || identical(separation_method, "augment")) {
+      try(
         do.call(
-          glmmTMB::glmmTMB,
-          c(list(formula = formula, family = stats::binomial(), data = df), list(...))
-        )
-      } else {
+          DA_prevalence_fit_augmented,
+          c(
+            list(
+              formula = formula,
+              df = df,
+              has_random_effects = has_random_effects
+            ),
+            extra_args
+          )
+        ),
+        silent = TRUE
+      )
+    } else {
+      try(
         do.call(
-          stats::glm,
-          c(list(formula = formula, family = stats::binomial(), data = df), list(...))
-        )
-      },
-      silent = TRUE
-    )
+          DA_prevalence_fit_firth,
+          c(list(formula = formula, df = df), extra_args)
+        ),
+        silent = TRUE
+      )
+    }
 
     if (inherits(fit, "try-error")) {
       return(c(coef = NA_real_, pval = NA_real_))
@@ -438,6 +542,10 @@ DA_fit_core_Prevalence <- function(features,
     pval_core = pval_prev
   )
 }
+
+###########################
+# DAssemble Core MaAsLin2 #
+###########################
 
 DA_fit_core_Maaslin2 <- function(features,
                                  metadata,

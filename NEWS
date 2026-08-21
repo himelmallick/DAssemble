@@ -1,3 +1,28 @@
+DAssemble 0.99.4
+=================
+
+* Extended the main `DAssemble()` API with support for `coVars`,
+  `random_effects`, and open-ended `method_args` controls for forwarding
+  additional arguments to supported underlying methods and enhancers.
+* Added a new `Prevalence` core method based on per-feature binomial
+  presence/absence regression, with `glm` for fixed-effects analyses and
+  `glmmTMB` for longitudinal random-intercept analyses.
+* Updated the `Prevalence` core to use MaAsLin3-style augmented logistic
+  fitting by default, and added an opt-in fixed-effects `"firth"` mode via
+  `method_args$Prevalence$separation_method` using `brglm2`.
+* Enabled or expanded multi-covariate support across compatible wrappers,
+  including `DESeq2`, `edgeR`, `limmaVOOM`, `metagenomeSeq`, `MAST`,
+  `Robseq`, `LinDA`, `Tweedieverse`, `Maaslin2`, and `Maaslin3`.
+* Exposed longitudinal support through the original `DAssemble()` entry point
+  for `Prevalence`, `Maaslin2`, `Maaslin3`, `Tweedieverse`, and the `LR`
+  enhancer.
+* Updated `LR` to support longitudinal mixed-effects logistic regression when
+  `random_effects` is supplied, while preserving the previous cross-sectional
+  logistic behavior otherwise.
+* Updated the README, vignette, examples, and man pages to document the new
+  API, supported method matrix, longitudinal workflows, and `method_args`
+  pass-through mechanism.
+
 DAssemble 0.99.3
 =================
 

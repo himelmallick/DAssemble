@@ -237,6 +237,12 @@ The expected pattern is:
 - `method_args$<MethodName>` for method-specific overrides such as
   `method_args$Maaslin3` or `method_args$LR`
 
+For the `Prevalence` core specifically, the wrapper also recognizes
+`method_args$Prevalence$separation_method`. The default is `"augment"`,
+which follows the MaAsLin3-style augmented logistic fit. For
+cross-sectional prevalence models, users can instead request
+`"firth"` to use bias-reduced logistic regression via `brglm2`.
+
 For wrappers with multiple internal stages, `method_args$<MethodName>` can also
 target subcalls. For example, the DESeq2 wrapper can receive entries such as
 `DESeq`, `results`, or `estimateSizeFactors`, while the edgeR wrapper can
@@ -248,14 +254,10 @@ Example:
 res <- DAssemble(
   features = features,
   metadata = metadata,
-  core_method = "Maaslin2",
-  enhancers = "LR",
+  core_method = "Prevalence",
   expVar = "group",
   method_args = list(
-    core = list(transform = "LOG"),
-    Maaslin2 = list(normalization = "CLR", transform = "NONE"),
-    enhancer = list(family = "binomial"),
-    LR = list(control = glm.control(maxit = 100))
+    Prevalence = list(separation_method = "firth")
   )
 )
 ```
@@ -470,10 +472,15 @@ All other current methods are treated as non-longitudinal in
 or enhancer, DAssemble will stop with a clear error instead of fitting a
 mis-specified model.
 
+For the `Prevalence` core, the default fitting path uses
+augmentation in both cross-sectional and longitudinal settings. The
+alternative `method_args$Prevalence$separation_method = "firth"` is
+available only for the non-longitudinal prevalence model.
+
 ### Longitudinal example
 
 `Maaslin3` is treated through its standard package pathway in
-`DAssemble()`; it is not forced into a prevalence-only mode.
+`DAssemble()`.
 
 ```r
 res <- DAssemble(

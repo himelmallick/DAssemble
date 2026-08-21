@@ -47,7 +47,10 @@ random intercepts in longitudinal-compatible methods.}
 Use \code{method_args$core} for arguments shared by the selected core method,
 \code{method_args$enhancer} for arguments shared by enhancers, and/or method
 names such as \code{method_args$Maaslin3} or \code{method_args$LR} for
-method-specific overrides.}
+method-specific overrides. For the \code{Prevalence} core, the wrapper-specific
+option \code{method_args$Prevalence$separation_method = "firth"} switches the
+fixed-effects prevalence model from the default MaAsLin3-style augmented
+logistic fit to bias-reduced fitting via \code{brglm2}.}
 
 \item{assay_name}{Name of the assay/experiment to use when \code{features} is a
 \code{MultiAssayExperiment}. Required when the object contains multiple

@@ -28,7 +28,10 @@
 #'   Use `method_args$core` for arguments shared by the selected core method,
 #'   `method_args$enhancer` for arguments shared by enhancers, and/or method
 #'   names such as `method_args$Maaslin3` or `method_args$LR` for
-#'   method-specific overrides.
+#'   method-specific overrides. For the `Prevalence` core, the wrapper-specific
+#'   option `method_args$Prevalence$separation_method = "firth"` switches the
+#'   fixed-effects prevalence model from the default MaAsLin3-style augmented
+#'   logistic fit to bias-reduced fitting via `brglm2`.
 #' @param p_adj Multiple-testing correction method passed to [stats::p.adjust].
 #' @param enhancer_norm Normalization method for enhancer tests. One of
 #'   `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`.

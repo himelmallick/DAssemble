@@ -1,7 +1,7 @@
 Package: DAssemble
 Type: Package
 Title: Ensemble Models for Differential Analysis
-Version: 0.99.3
+Version: 0.99.4
 Authors@R: 
     c(
         person("Himel", "Mallick", email = "him4004@med.cornell.edu", role = "aut"),
@@ -34,6 +34,7 @@ Suggests:
     metagenomeSeq,
     MAST,
     cplm,
+    brglm2,
     dfadjust,
     glmmTMB,
     logging,

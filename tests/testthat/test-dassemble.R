@@ -294,6 +294,75 @@ test_that("DAssemble forwards method_args to core and enhancer wrappers", {
   expect_true(all(c("pval_core", "pval_LR", "pval_joint") %in% names(res$res)))
 })
 
+test_that("Prevalence core uses augmented logistic fitting by default", {
+  toy <- make_toy_data()
+  called <- FALSE
+
+  testthat::local_mocked_bindings(
+    DA_prevalence_fit_augmented = function(formula, df, has_random_effects = FALSE, ...) {
+      called <<- TRUE
+      fit <- stats::glm(formula = formula, family = stats::binomial(), data = df)
+      fit
+    },
+    DA_prevalence_fit_firth = function(formula, df, ...) {
+      stop("should not use firth by default")
+    },
+    .package = "DAssemble"
+  )
+
+  res <- DAssemble:::DA_fit_core_Prevalence(
+    features = toy$features,
+    metadata = toy$metadata,
+    expVar = "group"
+  )
+
+  expect_true(called)
+  expect_true("pval_core" %in% names(res))
+  expect_equal(length(res$pval_core), ncol(toy$features))
+})
+
+test_that("Prevalence core supports opt-in firth fitting without random effects", {
+  toy <- make_toy_data()
+  called <- FALSE
+
+  testthat::local_mocked_bindings(
+    DA_prevalence_fit_augmented = function(formula, df, has_random_effects = FALSE, ...) {
+      stop("should not use augmentation when firth is requested")
+    },
+    DA_prevalence_fit_firth = function(formula, df, ...) {
+      called <<- TRUE
+      stats::glm(formula = formula, family = stats::binomial(), data = df)
+    },
+    .package = "DAssemble"
+  )
+
+  res <- DAssemble:::DA_fit_core_Prevalence(
+    features = toy$features,
+    metadata = toy$metadata,
+    expVar = "group",
+    separation_method = "firth"
+  )
+
+  expect_true(called)
+  expect_true("pval_core" %in% names(res))
+})
+
+test_that("Prevalence firth fitting is rejected for longitudinal random effects", {
+  toy <- make_toy_data()
+  toy$metadata$subject <- factor(rep(seq_len(4), each = 2))
+
+  expect_error(
+    DAssemble:::DA_fit_core_Prevalence(
+      features = toy$features,
+      metadata = toy$metadata,
+      expVar = "group",
+      random_effects = "subject",
+      separation_method = "firth"
+    ),
+    "only supported without random_effects"
+  )
+})
+
 test_that("DAssemble accepts MultiAssayExperiment input", {
   skip_if_not_installed("MultiAssayExperiment")
   skip_if_not_installed("SummarizedExperiment")
