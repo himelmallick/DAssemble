@@ -47,7 +47,6 @@ Suggests:
     MicrobiomeStat,
     ANCOMBC,
     ALDEx2,
-    parallel,
     airway,
     scran,
     SingleCellExperiment,
@@ -55,17 +54,9 @@ Suggests:
     rmarkdown,
     BiocStyle,
     phyloseq,
-    Seurat,
     S4Vectors,
     testthat (>= 3.0.0),
-    TreeSummarizedExperiment,
-    KernSmooth,
-    foreign,
-    nnet,
-    rpart,
-    spatial,
-    boot,
-    class
+    boot
 Roxygen: list(markdown = TRUE)
 VignetteBuilder: knitr
 URL: https://github.com/himelmallick/DAssemble

@@ -10,6 +10,8 @@ DAssemble 0.99.4
 * Updated the `Prevalence` core to use MaAsLin3-style augmented logistic
   fitting by default, and added an opt-in fixed-effects `"firth"` mode via
   `method_args$Prevalence$separation_method` using `brglm2`.
+* Preserved standard `Maaslin3` wrapper behavior rather than forcing a
+  prevalence-only analysis path.
 * Enabled or expanded multi-covariate support across compatible wrappers,
   including `DESeq2`, `edgeR`, `limmaVOOM`, `metagenomeSeq`, `MAST`,
   `Robseq`, `LinDA`, `Tweedieverse`, `Maaslin2`, and `Maaslin3`.
