@@ -90,11 +90,17 @@ underlying methods. The usual pattern is:
 - `method_args$enhancer` for arguments shared by the selected enhancers
 - `method_args$<MethodName>` for method-specific overrides
 
-For the `Prevalence` core, the wrapper additionally recognizes
-`method_args$Prevalence$separation_method`. The default is `"augment"`,
+For the `LR` enhancer, the wrapper additionally recognizes
+`method_args$LR$separation_method`. The default is `"augment"`,
 which follows the MaAsLin3-style augmented logistic fit. For
-cross-sectional prevalence analyses, users can instead request
+cross-sectional presence/absence logistic analyses, users can instead request
 `"firth"` to use bias-reduced logistic regression through `brglm2`.
+
+For the `Maaslin2` core, the wrapper also recognizes
+`method_args$Maaslin2$median_comparison = TRUE`. When requested, DAssemble
+uses raw `fit$results`, applies the internal `median_comparison_tweedie()`
+adjustment there, and only then reduces the output back to the standardized
+exposure-specific result table.
 
 Wrappers with multi-stage internals can also accept subcall-specific entries.
 For example, `method_args$DESeq2` may contain items such as `DESeq`,
@@ -105,10 +111,10 @@ items such as `glmFit` or `glmLRT`.
 res <- DAssemble(
   features = features,
   metadata = metadata,
-  core_method = "Prevalence",
+  enhancers = "LR",
   expVar = "group",
   method_args = list(
-    Prevalence = list(separation_method = "firth")
+    LR = list(separation_method = "firth")
   )
 )
 ```
@@ -117,7 +123,6 @@ res <- DAssemble(
 
 Core methods currently available in `DAssemble()` include:
 
-- `Prevalence`
 - `DESeq2`
 - `edgeR`
 - `limmaVOOM`
@@ -146,7 +151,6 @@ following methods:
 
 | Method | Multiple covariates |
 |:--|:--|
-| Prevalence | Yes |
 | DESeq2 | Yes |
 | edgeR | Yes |
 | limmaVOOM | Yes |
@@ -170,7 +174,6 @@ as longitudinal-compatible:
 
 | Method | Longitudinal support |
 |:--|:--|
-| Prevalence | Yes |
 | Maaslin2 | Yes |
 | Maaslin3 | Yes |
 | Tweedieverse | Yes |
@@ -179,10 +182,10 @@ as longitudinal-compatible:
 All other methods should be treated as cross-sectional only in the current
 package implementation.
 
-For the `Prevalence` core, the default fitting path uses MaAsLin3-style
+For the `LR` enhancer, the default fitting path uses MaAsLin3-style
 augmentation in both cross-sectional and longitudinal settings. The
-alternative `method_args$Prevalence$separation_method = "firth"` is
-available only for the non-longitudinal prevalence model.
+alternative `method_args$LR$separation_method = "firth"` is available only
+for the non-longitudinal model.
 
 `Maaslin3` is used through its standard package pathway in `DAssemble()` and
 is not forced into a prevalence-only mode.

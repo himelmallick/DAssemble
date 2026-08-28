@@ -8,6 +8,12 @@ DA_fit_enhancer_LR <- function(features,
                                coVars = NULL,
                                random_effects = NULL,
                                ...) {
+  extra_args <- list(...)
+  separation_method <- extra_args$separation_method %||% "augment"
+  extra_args$separation_method <- NULL
+  if (!separation_method %in% c("augment", "firth")) {
+    stop("LR separation_method must be one of 'augment' or 'firth'.")
+  }
   
   ########################
   # Standard LR pipeline #
@@ -34,6 +40,9 @@ DA_fit_enhancer_LR <- function(features,
   if (has_random_effects && !requireNamespace("glmmTMB", quietly = TRUE)) {
     stop("glmmTMB is required for LR with random_effects.")
   }
+  if (has_random_effects && identical(separation_method, "firth")) {
+    stop("LR separation_method = 'firth' is only supported without random_effects.")
+  }
   
   ##################
   # Per-feature LR #
@@ -46,15 +55,30 @@ DA_fit_enhancer_LR <- function(features,
       return(c(coef = NA_real_, pval = NA_real_))
     }
     fit  <- try(
-      if (has_random_effects) {
+      if (has_random_effects || identical(separation_method, "augment")) {
         do.call(
-          glmmTMB::glmmTMB,
-          c(list(formula = formula, family = stats::binomial(), data = df, offset = log_offset), list(...))
+          DA_prevalence_fit_augmented,
+          c(
+            list(
+              formula = formula,
+              df = df,
+              has_random_effects = has_random_effects,
+              offset = log_offset
+            ),
+            extra_args
+          )
         )
       } else {
         do.call(
-          glm,
-          c(list(formula = formula, family = binomial(), data = df, offset = log_offset), list(...))
+          DA_prevalence_fit_firth,
+          c(
+            list(
+              formula = formula,
+              df = df,
+              offset = log_offset
+            ),
+            extra_args
+          )
         )
       },
       silent = TRUE

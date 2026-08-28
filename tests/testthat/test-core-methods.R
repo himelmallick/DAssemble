@@ -100,6 +100,15 @@ test_that("MaAsLin core wrappers return standardized outputs when installed", {
   maaslin2 <- DAssemble:::DA_fit_core_Maaslin2(toy$features, toy$metadata, "group")
   expect_core_result(maaslin2, colnames(toy$features))
 
+  maaslin2_median <- DAssemble:::DA_fit_core_Maaslin2(
+    toy$features,
+    toy$metadata,
+    "group",
+    median_comparison = TRUE,
+    median_n_sims = 25
+  )
+  expect_core_result(maaslin2_median, colnames(toy$features))
+
   cleanup_logging_handlers()
 
   skip_if_not_installed("maaslin3")

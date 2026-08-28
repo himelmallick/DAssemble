@@ -82,7 +82,6 @@ cat("All required packages installed and loaded successfully.\n")
 
 | Method       | Package(s)                      |
 |-------------|----------------------------------|
-| Prevalence  | Internal DAssemble logistic presence/absence model using `glm` / `glmmTMB` |
 | DESeq2      | DESeq2                          |
 | edgeR       | edgeR                           |
 | limma-voom  | limma + edgeR                   |
@@ -108,7 +107,8 @@ Some methods already **combine two models internally** (e.g., hurdle or two‑pa
 * `MAST` – implements a hurdle model for single‑cell expression data;
 * `metagenomeSeq` – fits a zero‑inflated log‑normal model.
 
-You may still add enhancers to these models (e.g. to perform sensitivity analyses), but combining them with additional core methods is not recommended.
+You may still add enhancers such as `WLX` or `KS` to these models, but `LR` is not recommended here because it can
+reintroduce evidence. Combining them with additional core methods is also not recommended.
 
 ---
 
@@ -211,7 +211,7 @@ Key arguments:
 - `random_effects` – optional character vector of grouping variables for longitudinal-compatible methods
 - `method_args` – optional named list of method-specific control arguments passed through to the selected core method and/or enhancers
 - `assay_name` – experiment name to use when `features` is a `MultiAssayExperiment`; required when multiple experiments are present
-- `core_method` – one of the supported core method names (including `"Prevalence"`), or `NULL` / `"none"` to run an **enhancer-only** analysis
+- `core_method` – one of the supported core method names, or `NULL` / `"none"` to run an **enhancer-only** analysis
 - `enhancers` – `NULL` or a subset of `c("WLX", "LR", "KS")`
 - `p_adj` – multiple testing correction method (passed to `p.adjust`)
 - `enhancer_norm` – normalization used by enhancers, one of `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`
@@ -237,11 +237,17 @@ The expected pattern is:
 - `method_args$<MethodName>` for method-specific overrides such as
   `method_args$Maaslin3` or `method_args$LR`
 
-For the `Prevalence` core specifically, the wrapper also recognizes
-`method_args$Prevalence$separation_method`. The default is `"augment"`,
+For the `LR` enhancer specifically, the wrapper also recognizes
+`method_args$LR$separation_method`. The default is `"augment"`,
 which follows the MaAsLin3-style augmented logistic fit. For
-cross-sectional prevalence models, users can instead request
+cross-sectional presence/absence logistic models, users can instead request
 `"firth"` to use bias-reduced logistic regression via `brglm2`.
+
+For the `Maaslin2` core, the wrapper also recognizes
+`method_args$Maaslin2$median_comparison = TRUE`. When requested, DAssemble
+uses raw `fit$results`, applies the internal `median_comparison_tweedie()`
+adjustment there, and only then reduces the output back to the standardized
+exposure-specific result table.
 
 For wrappers with multiple internal stages, `method_args$<MethodName>` can also
 target subcalls. For example, the DESeq2 wrapper can receive entries such as
@@ -254,10 +260,10 @@ Example:
 res <- DAssemble(
   features = features,
   metadata = metadata,
-  core_method = "Prevalence",
+  enhancers = "LR",
   expVar = "group",
   method_args = list(
-    Prevalence = list(separation_method = "firth")
+    LR = list(separation_method = "firth")
   )
 )
 ```
@@ -435,7 +441,6 @@ The following methods support `coVars` in the current implementation:
 
 | Method | Multiple covariates |
 |--------|---------------------|
-| Prevalence | Yes |
 | DESeq2 | Yes |
 | edgeR | Yes |
 | limmaVOOM | Yes |
@@ -461,7 +466,6 @@ following longitudinal-compatible methods:
 
 | Method | Longitudinal support |
 |--------|----------------------|
-| Prevalence | Yes |
 | Maaslin2 | Yes |
 | Maaslin3 | Yes |
 | Tweedieverse | Yes |
@@ -472,10 +476,10 @@ All other current methods are treated as non-longitudinal in
 or enhancer, DAssemble will stop with a clear error instead of fitting a
 mis-specified model.
 
-For the `Prevalence` core, the default fitting path uses
-augmentation in both cross-sectional and longitudinal settings. The
-alternative `method_args$Prevalence$separation_method = "firth"` is
-available only for the non-longitudinal prevalence model.
+For the `LR` enhancer, the default fitting path uses augmentation in both
+cross-sectional and longitudinal settings. The alternative
+`method_args$LR$separation_method = "firth"` is available only for the
+non-longitudinal model.
 
 ### Longitudinal example
 

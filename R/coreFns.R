@@ -355,9 +355,9 @@ DA_fit_core_Robseq <- function(features, metadata, expVar, coVars = NULL, ...) {
   return(DA_format_result(feature, expVar, pval_core = pval_core))
 }
 
-##############################
-# DAssemble Core Prevalence  #
-##############################
+#############################################
+# DAssemble prevalence-logistic fit helpers #
+#############################################
 
 DA_prevalence_augmentation_weight <- function(formula, df) {
   rhs_formula <- stats::delete.response(stats::terms(formula))
@@ -401,31 +401,46 @@ DA_prevalence_fit_augmented <- function(formula,
   extra_args <- list(...)
   user_weights <- extra_args$weights
   extra_args$weights <- NULL
+  user_offset <- extra_args$offset
+  extra_args$offset <- NULL
   augmented <- DA_prevalence_augment_data(
     formula = formula,
     df = df,
     weights = user_weights
   )
+  if (!is.null(user_offset)) {
+    if (length(user_offset) != nrow(df)) {
+      stop("offset must have length equal to the number of samples.")
+    }
+    extra_args$offset <- rep(user_offset, 3L)
+  }
 
   fit_fun <- if (isTRUE(has_random_effects)) glmmTMB::glmmTMB else stats::glm
-  do.call(
-    fit_fun,
-    c(
-      list(
-        formula = formula,
-        family = stats::binomial(),
-        data = augmented$data,
-        weights = augmented$weights
-      ),
-      extra_args
-    )
+  withCallingHandlers(
+    do.call(
+      fit_fun,
+      c(
+        list(
+          formula = formula,
+          family = stats::binomial(),
+          data = augmented$data,
+          weights = augmented$weights
+        ),
+        extra_args
+      )
+    ),
+    warning = function(w) {
+      if (grepl("non-integer #successes in a binomial glm!", conditionMessage(w), fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+      }
+    }
   )
 }
 
 DA_prevalence_fit_firth <- function(formula, df, ...) {
   if (!requireNamespace("brglm2", quietly = TRUE)) {
     stop(
-      "brglm2 is required for separation_method = 'firth' in the Prevalence core."
+      "brglm2 is required for separation_method = 'firth' in the LR enhancer."
     )
   }
 
@@ -444,105 +459,6 @@ DA_prevalence_fit_firth <- function(formula, df, ...) {
   )
 }
 
-DA_fit_core_Prevalence <- function(features,
-                                   metadata,
-                                   expVar,
-                                   coVars = NULL,
-                                   random_effects = NULL,
-                                   zero_threshold = 0,
-                                   ...) {
-  extra_args <- list(...)
-  separation_method <- extra_args$separation_method %||% "augment"
-  extra_args$separation_method <- NULL
-  if (!separation_method %in% c("augment", "firth")) {
-    stop("Prevalence separation_method must be one of 'augment' or 'firth'.")
-  }
-  formula <- build_model_formula(
-    expVar = expVar,
-    coVars = coVars,
-    random_effects = random_effects,
-    response = "expr"
-  )
-  coef_name <- get_exp_coef_name(metadata, expVar, coVars)
-  has_random_effects <- !is.null(random_effects) && length(random_effects) > 0L
-
-  if (has_random_effects && !requireNamespace("glmmTMB", quietly = TRUE)) {
-    stop("glmmTMB is required for prevalence models with random_effects.")
-  }
-  if (has_random_effects && identical(separation_method, "firth")) {
-    stop("Prevalence separation_method = 'firth' is only supported without random_effects.")
-  }
-
-  prevalence_stats <- vapply(seq_len(ncol(features)), function(j) {
-    expr <- as.integer(features[, j] > zero_threshold)
-    if (length(unique(expr)) < 2L) {
-      return(c(coef = NA_real_, pval = NA_real_))
-    }
-
-    df <- cbind(metadata, expr = expr)
-    fit <- if (has_random_effects || identical(separation_method, "augment")) {
-      try(
-        do.call(
-          DA_prevalence_fit_augmented,
-          c(
-            list(
-              formula = formula,
-              df = df,
-              has_random_effects = has_random_effects
-            ),
-            extra_args
-          )
-        ),
-        silent = TRUE
-      )
-    } else {
-      try(
-        do.call(
-          DA_prevalence_fit_firth,
-          c(list(formula = formula, df = df), extra_args)
-        ),
-        silent = TRUE
-      )
-    }
-
-    if (inherits(fit, "try-error")) {
-      return(c(coef = NA_real_, pval = NA_real_))
-    }
-
-    sm <- try(summary(fit), silent = TRUE)
-    if (inherits(sm, "try-error")) {
-      return(c(coef = NA_real_, pval = NA_real_))
-    }
-
-    coef_table <- if (has_random_effects) sm$coefficients$cond else stats::coef(summary(fit))
-    if (!coef_name %in% rownames(coef_table)) {
-      return(c(coef = NA_real_, pval = NA_real_))
-    }
-
-    p_col <- intersect(c("Pr(>|z|)", "Pr(>|t|)"), colnames(coef_table))[1]
-    if (is.na(p_col)) {
-      return(c(coef = NA_real_, pval = NA_real_))
-    }
-
-    c(
-      coef = coef_table[coef_name, "Estimate"],
-      pval = coef_table[coef_name, p_col]
-    )
-  }, numeric(2))
-
-  coef_prev <- prevalence_stats["coef", ]
-  pval_prev <- prevalence_stats["pval", ]
-  names(coef_prev) <- colnames(features)
-  names(pval_prev) <- colnames(features)
-
-  DA_format_result(
-    feature = colnames(features),
-    expVar = expVar,
-    coef_core = coef_prev,
-    pval_core = pval_prev
-  )
-}
-
 ###########################
 # DAssemble Core MaAsLin2 #
 ###########################
@@ -553,6 +469,17 @@ DA_fit_core_Maaslin2 <- function(features,
                                  coVars = NULL,
                                  random_effects = NULL,
                                  ...) {
+  extra_args <- list(...)
+  median_comparison <- extra_args$median_comparison %||% FALSE
+  median_subtraction <- extra_args$median_subtraction %||% TRUE
+  median_n_sims <- extra_args$median_n_sims %||% 10000
+  median_p_cutoff <- extra_args$median_p_cutoff %||% 0.95
+  median_threshold <- extra_args$median_threshold %||% 0
+  extra_args$median_comparison <- NULL
+  extra_args$median_subtraction <- NULL
+  extra_args$median_n_sims <- NULL
+  extra_args$median_p_cutoff <- NULL
+  extra_args$median_threshold <- NULL
   
   ########################
   # Package sanity check #
@@ -567,19 +494,43 @@ DA_fit_core_Maaslin2 <- function(features,
   
   tmp <- file.path(tempdir(), paste0("m2_", sample(1e8,1)))
   dir.create(tmp, showWarnings = FALSE)
-  fit <- Maaslin2::Maaslin2(features, 
-                            metadata, 
-                            output = tmp, 
-                            fixed_effects  = c(expVar, coVars),
-                            random_effects = random_effects,
-                            min_abundance = -Inf, # No additional filtering
-                            save_scatter = FALSE, 
-                            save_models = FALSE,
-                            plot_heatmap = FALSE, 
-                            plot_scatter = FALSE, 
-                            max_significance = 1,
-                            ...)
+  fit <- do.call(
+    Maaslin2::Maaslin2,
+    c(
+      list(
+        input_data = features,
+        input_metadata = metadata,
+        output = tmp,
+        fixed_effects = c(expVar, coVars),
+        random_effects = random_effects,
+        min_abundance = -Inf,
+        save_scatter = FALSE,
+        save_models = FALSE,
+        plot_heatmap = FALSE,
+        plot_scatter = FALSE,
+        max_significance = 1
+      ),
+      extra_args
+    )
+  )
   res <- fit$results
+  if (isTRUE(median_comparison)) {
+    mc_input <- res
+    names(mc_input)[names(mc_input) == "feature"] <- "taxon"
+    names(mc_input)[names(mc_input) == "coef"] <- "effect_size"
+    mc_out <- median_comparison_tweedie(
+      mc_input,
+      p_cutoff = median_p_cutoff,
+      subtract_median = median_subtraction,
+      n_sims = median_n_sims,
+      median_threshold = median_threshold
+    )
+    res$coef <- mc_out$coef_median
+    res$pval <- mc_out$pval_median
+    if ("qval" %in% names(res)) {
+      res$qval <- stats::p.adjust(mc_out$pval_median, method = "BH")
+    }
+  }
   if (requireNamespace("logging", quietly = TRUE)) {
     try(logging::removeHandler("logging::writeToFile"), silent = TRUE)
   }

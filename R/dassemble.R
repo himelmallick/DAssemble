@@ -28,10 +28,13 @@
 #'   Use `method_args$core` for arguments shared by the selected core method,
 #'   `method_args$enhancer` for arguments shared by enhancers, and/or method
 #'   names such as `method_args$Maaslin3` or `method_args$LR` for
-#'   method-specific overrides. For the `Prevalence` core, the wrapper-specific
-#'   option `method_args$Prevalence$separation_method = "firth"` switches the
-#'   fixed-effects prevalence model from the default MaAsLin3-style augmented
-#'   logistic fit to bias-reduced fitting via `brglm2`.
+#'   method-specific overrides. For the `LR` enhancer, the wrapper-specific
+#'   option `method_args$LR$separation_method = "firth"` switches the
+#'   cross-sectional presence/absence logistic fit from the default
+#'   MaAsLin3-style augmented logistic fit to bias-reduced fitting via
+#'   `brglm2`. For the `Maaslin2` core, `method_args$Maaslin2$median_comparison
+#'   = TRUE` applies the internal median-comparison adjustment to raw
+#'   `fit$results` before the exposure-specific result table is standardized.
 #' @param p_adj Multiple-testing correction method passed to [stats::p.adjust].
 #' @param enhancer_norm Normalization method for enhancer tests. One of
 #'   `"TSS"`, `"CLR"`, `"TMM"`, or `"SCRAN"`.
@@ -102,8 +105,7 @@ DAssemble <- function(features,
     "DESeq2", "edgeR", "limmaVOOM", "dearseq",
     "metagenomeSeq", "MAST", "Tweedieverse",
     "Maaslin2", "Maaslin3", "LOCOM",
-    "LinDA", "ANCOMBC2", "Robseq", "ALDEx2",
-    "Prevalence"
+    "LinDA", "ANCOMBC2", "Robseq", "ALDEx2"
   )
   
   if (is.null(core_method) || identical(core_method, "none")) {
@@ -236,7 +238,7 @@ DAssemble <- function(features,
   }
 
   if (length(random_effects) > 0L) {
-    longitudinal_core <- c("Prevalence", "Maaslin2", "Maaslin3", "Tweedieverse")
+    longitudinal_core <- c("Maaslin2", "Maaslin3", "Tweedieverse")
     unsupported_core <- setdiff(core_method, longitudinal_core)
     unsupported_enh <- setdiff(enh_list, "LR")
     if (length(unsupported_core) > 0L) {
@@ -284,11 +286,8 @@ DAssemble <- function(features,
       expVar   = expVar,
       coVars   = coVars
     )
-    if (core_method %in% c("Prevalence", "Maaslin2", "Maaslin3", "Tweedieverse")) {
+    if (core_method %in% c("Maaslin2", "Maaslin3", "Tweedieverse")) {
       core_args$random_effects <- random_effects
-    }
-    if (core_method == "Prevalence") {
-      core_args$zero_threshold <- 0
     }
     core_args <- c(
       core_args,

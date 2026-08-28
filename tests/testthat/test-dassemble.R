@@ -294,7 +294,7 @@ test_that("DAssemble forwards method_args to core and enhancer wrappers", {
   expect_true(all(c("pval_core", "pval_LR", "pval_joint") %in% names(res$res)))
 })
 
-test_that("Prevalence core uses augmented logistic fitting by default", {
+test_that("LR enhancer uses augmented logistic fitting by default", {
   toy <- make_toy_data()
   called <- FALSE
 
@@ -304,24 +304,24 @@ test_that("Prevalence core uses augmented logistic fitting by default", {
       fit <- stats::glm(formula = formula, family = stats::binomial(), data = df)
       fit
     },
-    DA_prevalence_fit_firth = function(formula, df, ...) {
+    DA_prevalence_fit_firth = function(formula, df, offset = NULL, ...) {
       stop("should not use firth by default")
     },
     .package = "DAssemble"
   )
 
-  res <- DAssemble:::DA_fit_core_Prevalence(
+  res <- DAssemble:::DA_fit_enhancer_LR(
     features = toy$features,
     metadata = toy$metadata,
     expVar = "group"
   )
 
   expect_true(called)
-  expect_true("pval_core" %in% names(res))
-  expect_equal(length(res$pval_core), ncol(toy$features))
+  expect_true("pval_LR" %in% names(res))
+  expect_equal(length(res$pval_LR), ncol(toy$features))
 })
 
-test_that("Prevalence core supports opt-in firth fitting without random effects", {
+test_that("LR enhancer supports opt-in firth fitting without random effects", {
   toy <- make_toy_data()
   called <- FALSE
 
@@ -329,14 +329,14 @@ test_that("Prevalence core supports opt-in firth fitting without random effects"
     DA_prevalence_fit_augmented = function(formula, df, has_random_effects = FALSE, ...) {
       stop("should not use augmentation when firth is requested")
     },
-    DA_prevalence_fit_firth = function(formula, df, ...) {
+    DA_prevalence_fit_firth = function(formula, df, offset = NULL, ...) {
       called <<- TRUE
-      stats::glm(formula = formula, family = stats::binomial(), data = df)
+      stats::glm(formula = formula, family = stats::binomial(), data = df, offset = offset)
     },
     .package = "DAssemble"
   )
 
-  res <- DAssemble:::DA_fit_core_Prevalence(
+  res <- DAssemble:::DA_fit_enhancer_LR(
     features = toy$features,
     metadata = toy$metadata,
     expVar = "group",
@@ -344,15 +344,15 @@ test_that("Prevalence core supports opt-in firth fitting without random effects"
   )
 
   expect_true(called)
-  expect_true("pval_core" %in% names(res))
+  expect_true("pval_LR" %in% names(res))
 })
 
-test_that("Prevalence firth fitting is rejected for longitudinal random effects", {
+test_that("LR firth fitting is rejected for longitudinal random effects", {
   toy <- make_toy_data()
   toy$metadata$subject <- factor(rep(seq_len(4), each = 2))
 
   expect_error(
-    DAssemble:::DA_fit_core_Prevalence(
+    DAssemble:::DA_fit_enhancer_LR(
       features = toy$features,
       metadata = toy$metadata,
       expVar = "group",
