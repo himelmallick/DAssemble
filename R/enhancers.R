@@ -58,7 +58,7 @@ DA_fit_enhancer_LR <- function(features,
       if (has_random_effects || identical(separation_method, "augment")) {
         do.call(
           DA_prevalence_fit_augmented,
-          c(
+          merge_method_args(
             list(
               formula = formula,
               df = df,
@@ -71,7 +71,7 @@ DA_fit_enhancer_LR <- function(features,
       } else {
         do.call(
           DA_prevalence_fit_firth,
-          c(
+          merge_method_args(
             list(
               formula = formula,
               df = df,

@@ -84,7 +84,8 @@ DAssemble(
 ```
 
 `method_args` is a named control list used to forward additional arguments to
-underlying methods. The usual pattern is:
+underlying methods. When an argument overlaps with a DAssemble wrapper default,
+the value in `method_args` takes precedence. The usual pattern is:
 
 - `method_args$core` for arguments shared by the selected core method
 - `method_args$enhancer` for arguments shared by the selected enhancers
@@ -115,6 +116,20 @@ res <- DAssemble(
   expVar = "group",
   method_args = list(
     LR = list(separation_method = "firth")
+  )
+)
+```
+
+For example, MaAsLin3's prevalence median comparison can be enabled with:
+
+```{r maaslin3-method-args, eval=FALSE}
+res <- DAssemble(
+  features = features,
+  metadata = metadata,
+  core_method = "Maaslin3",
+  expVar = "group",
+  method_args = list(
+    Maaslin3 = list(median_comparison_prevalence = TRUE)
   )
 )
 ```

@@ -19,6 +19,11 @@ DAssemble 0.99.4
   for `Maaslin2`, `Maaslin3`, `Tweedieverse`, and the `LR` enhancer.
 * Removed the temporary `Prevalence` core path so prevalence-oriented modeling
   is handled consistently through the `LR` enhancer.
+* Clarified documentation for hurdle and two-part core methods so sensitivity
+  analyses recommend `WLX` or `KS`, but not `LR`, to avoid reintroducing
+  overlapping prevalence-style evidence.
+* Made method-specific arguments override DAssemble wrapper defaults before
+  MaAsLin2, MaAsLin3, and other wrapped model calls are evaluated.
 * Updated the README, vignette, examples, and man pages to document the new
   API, supported method matrix, longitudinal workflows, and `method_args`
   pass-through mechanism.

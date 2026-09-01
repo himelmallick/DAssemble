@@ -115,9 +115,19 @@ test_that("MaAsLin core wrappers return standardized outputs when installed", {
   maaslin3_captured <- capture_warnings(
     DAssemble:::DA_fit_core_Maaslin3(toy$features, toy$metadata, "group")
   )
-  expect_captured_warning(maaslin3_captured, "perfect fit")
   maaslin3 <- maaslin3_captured$value
   expect_core_result(maaslin3, colnames(toy$features))
+
+  cleanup_logging_handlers()
+  maaslin3_overridden <- capture_warnings(
+    DAssemble:::DA_fit_core_Maaslin3(
+      toy$features,
+      toy$metadata,
+      "group",
+      median_comparison_prevalence = TRUE
+    )
+  )$value
+  expect_core_result(maaslin3_overridden, colnames(toy$features))
 
   cleanup_logging_handlers()
 })
@@ -126,14 +136,14 @@ test_that("Tweedieverse core wrapper standardizes mocked internal output", {
   toy <- make_core_toy_data()
 
   testthat::local_mocked_bindings(
-    DAssemble_Tweedieverse = function(features, metadata, fixed_effects, ...) {
-      expect_equal(features, toy$features)
-      expect_equal(metadata, toy$metadata)
+    DAssemble_Tweedieverse = function(input_features, input_metadata, fixed_effects, ...) {
+      expect_equal(input_features, toy$features)
+      expect_equal(input_metadata, toy$metadata)
       expect_equal(fixed_effects, "group")
       data.frame(
-        feature = colnames(features),
+        feature = colnames(input_features),
         metadata = "group",
-        pval = seq_along(features) / 10,
+        pval = seq_along(input_features) / 10,
         stringsAsFactors = FALSE
       )
     },

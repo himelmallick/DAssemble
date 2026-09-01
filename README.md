@@ -228,7 +228,8 @@ The main output includes:
 
 `DAssemble()` supports an open-ended `method_args` control list so users can
 pass additional arguments to underlying methods without the package needing to
-enumerate every possible option in the top-level API.
+enumerate every possible option in the top-level API. When an argument overlaps
+with a DAssemble wrapper default, the value in `method_args` takes precedence.
 
 The expected pattern is:
 
@@ -264,6 +265,21 @@ res <- DAssemble(
   expVar = "group",
   method_args = list(
     LR = list(separation_method = "firth")
+  )
+)
+```
+
+For example, MaAsLin3's prevalence median comparison can be enabled while
+retaining the other DAssemble defaults:
+
+```r
+res <- DAssemble(
+  features = features,
+  metadata = metadata,
+  core_method = "Maaslin3",
+  expVar = "group",
+  method_args = list(
+    Maaslin3 = list(median_comparison_prevalence = TRUE)
   )
 )
 ```

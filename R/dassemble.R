@@ -28,7 +28,9 @@
 #'   Use `method_args$core` for arguments shared by the selected core method,
 #'   `method_args$enhancer` for arguments shared by enhancers, and/or method
 #'   names such as `method_args$Maaslin3` or `method_args$LR` for
-#'   method-specific overrides. For the `LR` enhancer, the wrapper-specific
+#'   method-specific overrides. Matching arguments override DAssemble wrapper
+#'   defaults before the underlying function is called. For the `LR` enhancer,
+#'   the wrapper-specific
 #'   option `method_args$LR$separation_method = "firth"` switches the
 #'   cross-sectional presence/absence logistic fit from the default
 #'   MaAsLin3-style augmented logistic fit to bias-reduced fitting via

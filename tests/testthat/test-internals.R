@@ -167,6 +167,16 @@ test_that("SummarizedExperiment assay extraction returns selected assay", {
   expect_null(DAssemble:::extractAssay(se, "missing"))
 })
 
+test_that("method arguments override wrapper defaults", {
+  merged <- DAssemble:::merge_method_args(
+    list(median_comparison_prevalence = FALSE, max_significance = 1),
+    list(median_comparison_prevalence = TRUE)
+  )
+
+  expect_true(merged$median_comparison_prevalence)
+  expect_equal(merged$max_significance, 1)
+})
+
 test_that("Tweedieverse utility functions handle small deterministic inputs", {
   expect_equal(DAssemble:::entropy(c("A", "A", "A")), 0)
   expect_equal(round(DAssemble:::entropy(c("A", "A", "B", "B")), 6), 1)
