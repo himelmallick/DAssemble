@@ -72,9 +72,11 @@ result tables.}
 results for all available method subsets.}
 }
 \value{
-A list containing combined results in \code{res}, the analyzed feature
-table in \code{features}, elapsed time in \code{Time.min}, and optionally
-\code{components} and \code{ensembles}.
+A list containing the CCT-ranked joint results in \code{res}, the
+analyzed feature table in \code{features}, elapsed time in \code{Time.min}, and a
+named \code{components} list when \code{return_components = TRUE}. Each component is
+the standardized result table from one selected core method or enhancer.
+Optional CCT sub-ensemble results are returned in \code{ensembles}.
 }
 \description{
 The \code{DAssemble} function implements an ensemble strategy for differential

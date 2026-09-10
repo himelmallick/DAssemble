@@ -4,4 +4,6 @@
 ^vignettes/DAssemble[.]BiocCheck$
 ^vignettes/DAssemble_[0-9.]+[.]tar[.]gz$
 ^[.]DS_Store$
+^[.]gitignore$
+^inst/[.]DS_Store$
 ^vignettes/[.]DS_Store$

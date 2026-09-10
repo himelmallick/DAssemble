@@ -168,6 +168,8 @@ test_that("single enhancer DAssemble bypasses CCT and keeps p-values", {
 
   expect_equal(res$res$pval_joint, res$res$pval_WLX)
   expect_equal(res$res$qval, stats::p.adjust(res$res$pval_WLX, method = "BH"))
+  expect_named(res$components, "WLX")
+  expect_equal(res$components$WLX$pval_WLX, res$res$pval_WLX)
 })
 
 test_that("DAssemble supports longitudinal LR through random_effects", {

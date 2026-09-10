@@ -197,7 +197,7 @@ DAssemble(
   assay_name    = NULL,
   p_adj         = "BY",
   enhancer_norm = "TSS",
-  return_components   = FALSE,
+  return_components   = TRUE,
   return_subensembles = FALSE
 )
 ```
@@ -220,9 +220,14 @@ Key arguments:
 
 The main output includes:
 
-- `$results` – data frame of features with ensemble p-values (raw and adjusted)
-- `$components` – (optional) list of per-method result tables
+- `$res` – data frame of features ranked by joint CCT p-value and adjusted q-value
+- `$components` – named list of individual core/enhancer result tables (returned by default)
 - `$ensembles` – (optional) table of sub-ensemble CCT results
+
+For example, with `core_method = "DESeq2"` and `enhancers = c("WLX", "LR")`,
+the individual results are available as `result$components$DESeq2`,
+`result$components$WLX`, and `result$components$LR`. These tables do not alter
+the joint ranking in `result$res`.
 
 ### Passing through method-specific options
 

@@ -1,9 +1,10 @@
 ---
 title: "DAssemble: Ensemble Differential Analysis"
 author:
-  - name: Himel Mallick
   - name: Ziyu Liu
   - name: Nalin Arora
+  - name: Chuxuan Gao
+  - name: Himel Mallick
 package: DAssemble
 output:
   BiocStyle::html_document:
@@ -246,7 +247,7 @@ res <- DAssemble::DAssemble(
   core_method = "DESeq2",
   enhancers = c("WLX", "LR"),
   expVar = "dex",
-  coVars = c("cell", "albut"),
+  coVars = "cell",
   p_adj = "BH",
   enhancer_norm = "tmm",
   method_args = list(
@@ -265,31 +266,97 @@ head(res$res)
 names(res$components)
 ```
 
-This analysis adjusts for `cell` and `albut`, combines DESeq2 p-values with
+This analysis adjusts for `cell`, combines DESeq2 p-values with
 Wilcoxon and logistic-regression enhancer p-values, and forwards example
 control arguments through `method_args`. The combined results are returned in
 `res$res`, and the per-method outputs are available in `res$components`.
 
-# Longitudinal example
+# Longitudinal HMP2 Example
 
-The example below illustrates a longitudinal-style call using a
-longitudinal-compatible core method and the `LR` enhancer.
+The Human Microbiome Project 2 adult example included with the package shows a
+longitudinal microbiome analysis with multiple covariates. The feature table and
+metadata are stored in `inst/extdata` and can be accessed after installation
+with `system.file()`. To keep the vignette build lightweight, the evaluated
+example below uses the most abundant taxa and runs the Dysbiosis_UC scenario.
 
-```{r longitudinal-example, eval=FALSE}
-res <- DAssemble::DAssemble(
-  features = features,
-  metadata = metadata,
-  core_method = "Maaslin3",
-  enhancers = "LR",
-  expVar = "group",
-  coVars = c("age", "sex", "batch"),
-  random_effects = "subject",
-  method_args = list(
-    Maaslin3 = list(max_significance = 0.25),
-    LR = list(control = glm.control(maxit = 100))
-  ),
-  p_adj = "BH"
+```{r hmp2-longitudinal-example}
+hmp2_file <- system.file(
+  "extdata",
+  "hmp2_adult.RData",
+  package = "DAssemble",
+  mustWork = TRUE
 )
+load(hmp2_file)
+
+stopifnot(
+  exists("adult_taxa"),
+  exists("adult_meta"),
+  identical(rownames(adult_taxa), rownames(adult_meta))
+)
+
+binary_factor <- function(x) {
+  factor(as.integer(x), levels = c(0, 1))
+}
+
+adult_meta$diagnosis_CD <- binary_factor(adult_meta$diagnosis == "CD")
+adult_meta$diagnosis_UC <- binary_factor(adult_meta$diagnosis == "UC")
+adult_meta$dysbiosis_CD <- binary_factor(
+  adult_meta$dysbiosis_state == "dysbiosis_CD"
+)
+adult_meta$dysbiosis_UC <- binary_factor(
+  adult_meta$dysbiosis_state == "dysbiosis_UC"
+)
+adult_meta$dysbiosis_nonIBD <- binary_factor(
+  adult_meta$dysbiosis_state == "dysbiosis_nonIBD"
+)
+adult_meta$abx_used <- binary_factor(adult_meta$Antibiotics == "Yes")
+adult_meta$participant_id <- factor(adult_meta$`Participant ID`)
+
+disease <- "UC"
+other_disease <- "CD"
+hmp2_taxa <- adult_taxa[
+  ,
+  order(colSums(adult_taxa), decreasing = TRUE)[seq_len(20L)],
+  drop = FALSE
+]
+
+res <- DAssemble::DAssemble(
+  features = hmp2_taxa,
+  metadata = adult_meta,
+  expVar = paste0("dysbiosis_", disease),
+  coVars = c(
+    "diagnosis_CD",
+    "diagnosis_UC",
+    paste0("dysbiosis_", other_disease),
+    "dysbiosis_nonIBD",
+    "abx_used",
+    "reads_filtered"
+  ),
+  random_effects = "participant_id",
+  core_method = "Maaslin2",
+  enhancers = "LR",
+  method_args = list(
+    Maaslin2 = list(median_comparison = TRUE)
+  ),
+  enhancer_norm = "TSS",
+  p_adj = "BH",
+  return_components = TRUE
+)
+
+head(res$res)
+head(res$components$Maaslin2)
+head(res$components$LR)
+```
+
+The same example is also available as an executable script:
+
+```{r hmp2-example-script, eval=FALSE}
+source(system.file(
+  "extdata",
+  "hmp2_adult_example.R",
+  package = "DAssemble",
+  mustWork = TRUE
+))
 ```
 
 # Microbiome Example

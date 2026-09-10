@@ -4,10 +4,13 @@ Title: Ensemble Models for Differential Analysis
 Version: 0.99.4
 Authors@R: 
     c(
-        person("Himel", "Mallick", email = "him4004@med.cornell.edu", role = "aut"),
         person("Ziyu", "Liu", email = "lclcencen@gmail.com", role = "aut"),
         person("Nalin", "Arora", email = "naa4050@med.cornell.edu", role = c("aut", "cre"),
-               comment = c(ORCID = "0009-0009-1340-688X")))
+               comment = c(ORCID = "0009-0009-1340-688X")),
+        person("Chuxuan", "Gao", email = "chg4016@alumni.weill.cornell.edu",
+               role = "aut"),
+        person("Himel", "Mallick", email = "him4004@med.cornell.edu",
+               role = "aut"))
 Description: 
     The DAssemble package implements an ensemble framework for differential-abundance
     and differential-expression analysis across bulk RNA-seq, single-cell RNA-seq,

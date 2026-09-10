@@ -45,9 +45,11 @@
 #' @param return_subensembles Logical; if `TRUE`, return CCT sub-ensemble
 #'   results for all available method subsets.
 #'
-#' @return A list containing combined results in `res`, the analyzed feature
-#'   table in `features`, elapsed time in `Time.min`, and optionally
-#'   `components` and `ensembles`.
+#' @return A list containing the CCT-ranked joint results in `res`, the
+#'   analyzed feature table in `features`, elapsed time in `Time.min`, and a
+#'   named `components` list when `return_components = TRUE`. Each component is
+#'   the standardized result table from one selected core method or enhancer.
+#'   Optional CCT sub-ensemble results are returned in `ensembles`.
 #'
 #' @examples
 #' features <- data.frame(
