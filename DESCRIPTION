@@ -10,7 +10,7 @@ Authors@R:
         person("Chuxuan", "Gao", email = "chg4016@alumni.weill.cornell.edu",
                role = "aut"),
         person("Himel", "Mallick", email = "him4004@med.cornell.edu",
-               role = "aut"))
+               role = "aut", comment = c(ORCID = "0000-0003-4956-2429")))
 Description: 
     The DAssemble package implements an ensemble framework for differential-abundance
     and differential-expression analysis across bulk RNA-seq, single-cell RNA-seq,
@@ -62,7 +62,7 @@ Suggests:
     boot
 Roxygen: list(markdown = TRUE)
 VignetteBuilder: knitr
-URL: https://github.com/himelmallick/DAssemble
+URL: https://himelmallick.github.io/DAssemble/, https://github.com/himelmallick/DAssemble
 BugReports: https://github.com/himelmallick/DAssemble/issues
 Config/testthat/edition: 3
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.1

@@ -1,0 +1,22 @@
+url: https://himelmallick.github.io/DAssemble/
+template:
+  bootstrap: 5
+  bootswatch: flatly
+  bslib:
+    primary: '#0E2A47'
+    base_font:
+      google: Inter
+    heading_font:
+      google: Inter
+    code_font:
+      google: JetBrains Mono
+navbar:
+  bg: primary
+  type: dark
+reference:
+- title: Functions
+  contents:
+  - DAssemble
+- title: About the package
+  contents:
+  - DAssemble-package

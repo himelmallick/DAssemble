@@ -7,3 +7,8 @@
 ^[.]gitignore$
 ^inst/[.]DS_Store$
 ^vignettes/[.]DS_Store$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^hexsticker$
+^\.github$

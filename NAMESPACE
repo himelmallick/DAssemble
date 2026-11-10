@@ -2,23 +2,27 @@
 
 export(DAssemble)
 importFrom(dplyr,everything)
-importFrom(stats,as.formula)
-importFrom(stats,binomial)
-importFrom(stats,coef)
-importFrom(stats,fitted)
-importFrom(stats,glm)
-importFrom(stats,model.matrix)
-importFrom(stats,na.exclude)
-importFrom(stats,na.pass)
-importFrom(stats,p.adjust)
-importFrom(stats,pcauchy)
-importFrom(stats,plogis)
-importFrom(stats,relevel)
-importFrom(stats,sd)
-importFrom(stats,update)
-importFrom(utils,capture.output)
-importFrom(utils,combn)
-importFrom(utils,head)
-importFrom(utils,read.table)
-importFrom(utils,type.convert)
-importFrom(utils,write.table)
+importFrom(stats,
+  as.formula,
+  binomial,
+  coef,
+  fitted,
+  glm,
+  model.matrix,
+  na.exclude,
+  na.pass,
+  p.adjust,
+  pcauchy,
+  plogis,
+  relevel,
+  sd,
+  update
+)
+importFrom(utils,
+  capture.output,
+  combn,
+  head,
+  read.table,
+  type.convert,
+  write.table
+)

@@ -1,4 +1,4 @@
-# DAssemble
+# DAssemble <img src="man/figures/logo.png" align="right" height="139" alt="" />
 
 DAssemble is an R package for ensemble differential-abundance / differential-expression (DA/DE) analysis across multiple omics domains. It wraps a collection of existing DA/DE methods as **core methods**, combines them via **Cauchy Combination Tests (CCT)**, and augments them with lightweight **enhancers**.
 
@@ -8,7 +8,21 @@ DAssemble is an R package for ensemble differential-abundance / differential-exp
 
 ### 1. Install the DAssemble package
 
-You can install **DAssemble** directly from GitHub:
+**From Bioconductor (recommended)**
+
+DAssemble is available from [Bioconductor](https://bioconductor.org/packages/DAssemble)
+and requires R (>= 4.6.0):
+
+```r
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DAssemble")
+```
+
+**Development version from GitHub**
+
+To get the latest features and fixes before they reach Bioconductor:
 
 ```r
 # install.packages("remotes")  # if not already installed

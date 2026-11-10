@@ -28,7 +28,7 @@ Authors:
   \item Nalin Arora \email{naa4050@med.cornell.edu} (\href{https://orcid.org/0009-0009-1340-688X}{ORCID})
   \item Ziyu Liu \email{lclcencen@gmail.com}
   \item Chuxuan Gao \email{chg4016@alumni.weill.cornell.edu}
-  \item Himel Mallick \email{him4004@med.cornell.edu}
+  \item Himel Mallick \email{him4004@med.cornell.edu} (\href{https://orcid.org/0000-0003-4956-2429}{ORCID})
 }
 
 }
