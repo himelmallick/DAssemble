@@ -806,16 +806,18 @@ DA_fit_core_LOCOM <- function(features, metadata, expVar, coVars = NULL, ...) {
   otu <- as.matrix(features)
   Y <- metadata[[expVar]]
   if (is.factor(Y)) Y <- as.numeric(Y) - 1
+  # Newer LOCOM2 (Bioc >= 3.24) uses a formula interface,
+  # locom2(otu ~ Y, ...); older versions take otu.table/Y arguments.
+  # Support both. The formula is evaluated in this function's environment.
+  locom_args <- if ("formula" %in% names(formals(LOCOM2::locom2))) {
+    list(formula = otu ~ Y)
+  } else {
+    list(otu.table = otu, Y = Y)
+  }
   fit <- do.call(
     LOCOM2::locom2,
     merge_method_args(
-      list(
-        otu.table = otu,
-        Y = Y,
-        seed = 1234,
-        filter = FALSE,
-        verbose = FALSE
-      ),
+      c(locom_args, list(seed = 1234, filter = FALSE, verbose = FALSE)),
       list(...)
     )
   )
