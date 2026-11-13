@@ -363,58 +363,58 @@ res <- DAssemble::DAssemble(
 )
 #> [1] "Creating output feature tables folder"
 #> [1] "Creating output fits folder"
-#> 2026-11-12 12:46:59.446008 INFO::Writing function arguments to log file
-#> 2026-11-12 12:46:59.454833 INFO::Verifying options selected are valid
-#> 2026-11-12 12:46:59.47139 INFO::Determining format of input files
-#> 2026-11-12 12:46:59.471842 INFO::Input format is data samples as rows and metadata samples as rows
-#> 2026-11-12 12:46:59.476335 INFO::Formula for random effects: expr ~ (1 | participant_id)
-#> 2026-11-12 12:46:59.476717 INFO::Formula for fixed effects: expr ~  dysbiosis_UC + diagnosis_CD + diagnosis_UC + dysbiosis_CD + dysbiosis_nonIBD + abx_used + reads_filtered
-#> 2026-11-12 12:46:59.477044 INFO::Factor detected for categorial metadata 'dysbiosis_UC'. Provide a reference argument or manually set factor ordering to change reference level.
-#> 2026-11-12 12:46:59.477297 INFO::Factor detected for categorial metadata 'diagnosis_CD'. Provide a reference argument or manually set factor ordering to change reference level.
-#> 2026-11-12 12:46:59.477539 INFO::Factor detected for categorial metadata 'diagnosis_UC'. Provide a reference argument or manually set factor ordering to change reference level.
-#> 2026-11-12 12:46:59.47778 INFO::Factor detected for categorial metadata 'dysbiosis_CD'. Provide a reference argument or manually set factor ordering to change reference level.
-#> 2026-11-12 12:46:59.478013 INFO::Factor detected for categorial metadata 'dysbiosis_nonIBD'. Provide a reference argument or manually set factor ordering to change reference level.
-#> 2026-11-12 12:46:59.478243 INFO::Factor detected for categorial metadata 'abx_used'. Provide a reference argument or manually set factor ordering to change reference level.
-#> 2026-11-12 12:46:59.478465 INFO::Filter data based on min abundance and min prevalence
-#> 2026-11-12 12:46:59.47869 INFO::Total samples in data: 1078
-#> 2026-11-12 12:46:59.478927 INFO::Min samples required with min abundance for a feature not to be filtered: 107.800000
-#> 2026-11-12 12:46:59.479716 INFO::Total filtered features: 0
-#> 2026-11-12 12:46:59.48004 INFO::Filtered feature names from abundance and prevalence filtering:
-#> 2026-11-12 12:46:59.480924 INFO::Total filtered features with variance filtering: 0
-#> 2026-11-12 12:46:59.481195 INFO::Filtered feature names from variance filtering:
-#> 2026-11-12 12:46:59.481434 INFO::Running selected normalization method: TSS
-#> 2026-11-12 12:46:59.520656 INFO::Applying z-score to standardize continuous metadata
-#> 2026-11-12 12:46:59.527512 INFO::Running selected transform method: LOG
-#> 2026-11-12 12:46:59.529082 INFO::Running selected analysis method: LM
-#> 2026-11-12 12:46:59.679024 INFO::Fitting model to feature number 1, UNCLASSIFIED
-#> 2026-11-12 12:46:59.742475 INFO::Fitting model to feature number 2, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Phocaeicola.s__Phocaeicola_vulgatus.t__SGB1814
-#> 2026-11-12 12:46:59.776408 INFO::Fitting model to feature number 3, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_uniformis.t__SGB1836
-#> 2026-11-12 12:46:59.809446 INFO::Fitting model to feature number 4, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Phocaeicola.s__Phocaeicola_dorei.t__SGB1815
-#> 2026-11-12 12:46:59.841956 INFO::Fitting model to feature number 5, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_stercoris.t__SGB1830
-#> 2026-11-12 12:46:59.964413 INFO::Fitting model to feature number 6, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Prevotellaceae.g__Prevotella.s__Prevotella_copri_clade_A.t__SGB1626
-#> 2026-11-12 12:46:59.9979 INFO::Fitting model to feature number 7, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_ovatus.t__SGB1871
-#> 2026-11-12 12:47:00.030564 INFO::Fitting model to feature number 8, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15342
-#> 2026-11-12 12:47:00.063314 INFO::Fitting model to feature number 9, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Lachnospiraceae.g__Lachnospiraceae_unclassified.s__Eubacterium_rectale.t__SGB4933
-#> 2026-11-12 12:47:00.095698 INFO::Fitting model to feature number 10, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Rikenellaceae.g__Alistipes.s__Alistipes_putredinis.t__SGB2318
-#> 2026-11-12 12:47:00.127903 INFO::Fitting model to feature number 11, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Tannerellaceae.g__Parabacteroides.s__Parabacteroides_distasonis.t__SGB1934
-#> 2026-11-12 12:47:00.846392 INFO::Fitting model to feature number 12, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Lachnospiraceae.g__Roseburia.s__Roseburia_intestinalis.t__SGB4951
-#> 2026-11-12 12:47:00.880818 INFO::Fitting model to feature number 13, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15316
-#> 2026-11-12 12:47:00.916903 INFO::Fitting model to feature number 14, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_fragilis.t__SGB1855
-#> 2026-11-12 12:47:00.949692 INFO::Fitting model to feature number 15, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Lachnospiraceae.g__Roseburia.s__Roseburia_faecis.t__SGB4925
-#> 2026-11-12 12:47:00.981375 INFO::Fitting model to feature number 16, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_caccae.t__SGB1877
-#> 2026-11-12 12:47:01.01493 INFO::Fitting model to feature number 17, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Phocaeicola.s__Phocaeicola_massiliensis.t__SGB1812
-#> 2026-11-12 12:47:01.050481 INFO::Fitting model to feature number 18, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15332
-#> 2026-11-12 12:47:01.086378 INFO::Fitting model to feature number 19, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_thetaiotaomicron.t__SGB1861
-#> 2026-11-12 12:47:01.1218 INFO::Fitting model to feature number 20, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15318
-#> 2026-11-12 12:47:01.162743 INFO::Counting total values for each feature
-#> 2026-11-12 12:47:01.167219 INFO::Writing filtered data to file /tmp/Rtmpz0uZTX/m2_78435735/features/filtered_data.tsv
-#> 2026-11-12 12:47:01.17481 INFO::Writing filtered, normalized data to file /tmp/Rtmpz0uZTX/m2_78435735/features/filtered_data_norm.tsv
-#> 2026-11-12 12:47:01.182516 INFO::Writing filtered, normalized, transformed data to file /tmp/Rtmpz0uZTX/m2_78435735/features/filtered_data_norm_transformed.tsv
-#> 2026-11-12 12:47:01.192013 INFO::Writing residuals to file /tmp/Rtmpz0uZTX/m2_78435735/fits/residuals.rds
-#> 2026-11-12 12:47:01.198507 INFO::Writing fitted values to file /tmp/Rtmpz0uZTX/m2_78435735/fits/fitted.rds
-#> 2026-11-12 12:47:01.204002 INFO::Writing extracted random effects to file /tmp/Rtmpz0uZTX/m2_78435735/fits/ranef.rds
-#> 2026-11-12 12:47:01.20468 INFO::Writing all results to file (ordered by increasing q-values): /tmp/Rtmpz0uZTX/m2_78435735/all_results.tsv
-#> 2026-11-12 12:47:01.206048 INFO::Writing the significant results (those which are less than or equal to the threshold of 1.000000 ) to file (ordered by increasing q-values): /tmp/Rtmpz0uZTX/m2_78435735/significant_results.tsv
+#> 2026-11-13 17:13:25.182808 INFO::Writing function arguments to log file
+#> 2026-11-13 17:13:25.19882 INFO::Verifying options selected are valid
+#> 2026-11-13 17:13:25.226036 INFO::Determining format of input files
+#> 2026-11-13 17:13:25.226776 INFO::Input format is data samples as rows and metadata samples as rows
+#> 2026-11-13 17:13:25.233622 INFO::Formula for random effects: expr ~ (1 | participant_id)
+#> 2026-11-13 17:13:25.234289 INFO::Formula for fixed effects: expr ~  dysbiosis_UC + diagnosis_CD + diagnosis_UC + dysbiosis_CD + dysbiosis_nonIBD + abx_used + reads_filtered
+#> 2026-11-13 17:13:25.234872 INFO::Factor detected for categorial metadata 'dysbiosis_UC'. Provide a reference argument or manually set factor ordering to change reference level.
+#> 2026-11-13 17:13:25.235431 INFO::Factor detected for categorial metadata 'diagnosis_CD'. Provide a reference argument or manually set factor ordering to change reference level.
+#> 2026-11-13 17:13:25.235941 INFO::Factor detected for categorial metadata 'diagnosis_UC'. Provide a reference argument or manually set factor ordering to change reference level.
+#> 2026-11-13 17:13:25.236486 INFO::Factor detected for categorial metadata 'dysbiosis_CD'. Provide a reference argument or manually set factor ordering to change reference level.
+#> 2026-11-13 17:13:25.236983 INFO::Factor detected for categorial metadata 'dysbiosis_nonIBD'. Provide a reference argument or manually set factor ordering to change reference level.
+#> 2026-11-13 17:13:25.237503 INFO::Factor detected for categorial metadata 'abx_used'. Provide a reference argument or manually set factor ordering to change reference level.
+#> 2026-11-13 17:13:25.237968 INFO::Filter data based on min abundance and min prevalence
+#> 2026-11-13 17:13:25.238467 INFO::Total samples in data: 1078
+#> 2026-11-13 17:13:25.238927 INFO::Min samples required with min abundance for a feature not to be filtered: 107.800000
+#> 2026-11-13 17:13:25.240241 INFO::Total filtered features: 0
+#> 2026-11-13 17:13:25.240841 INFO::Filtered feature names from abundance and prevalence filtering:
+#> 2026-11-13 17:13:25.242361 INFO::Total filtered features with variance filtering: 0
+#> 2026-11-13 17:13:25.24292 INFO::Filtered feature names from variance filtering:
+#> 2026-11-13 17:13:25.243443 INFO::Running selected normalization method: TSS
+#> 2026-11-13 17:13:25.303838 INFO::Applying z-score to standardize continuous metadata
+#> 2026-11-13 17:13:25.31418 INFO::Running selected transform method: LOG
+#> 2026-11-13 17:13:25.316619 INFO::Running selected analysis method: LM
+#> 2026-11-13 17:13:25.538981 INFO::Fitting model to feature number 1, UNCLASSIFIED
+#> 2026-11-13 17:13:25.642159 INFO::Fitting model to feature number 2, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Phocaeicola.s__Phocaeicola_vulgatus.t__SGB1814
+#> 2026-11-13 17:13:25.705475 INFO::Fitting model to feature number 3, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_uniformis.t__SGB1836
+#> 2026-11-13 17:13:25.761971 INFO::Fitting model to feature number 4, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Phocaeicola.s__Phocaeicola_dorei.t__SGB1815
+#> 2026-11-13 17:13:25.817523 INFO::Fitting model to feature number 5, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_stercoris.t__SGB1830
+#> 2026-11-13 17:13:25.96517 INFO::Fitting model to feature number 6, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Prevotellaceae.g__Prevotella.s__Prevotella_copri_clade_A.t__SGB1626
+#> 2026-11-13 17:13:26.019672 INFO::Fitting model to feature number 7, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_ovatus.t__SGB1871
+#> 2026-11-13 17:13:26.074857 INFO::Fitting model to feature number 8, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15342
+#> 2026-11-13 17:13:26.130963 INFO::Fitting model to feature number 9, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Lachnospiraceae.g__Lachnospiraceae_unclassified.s__Eubacterium_rectale.t__SGB4933
+#> 2026-11-13 17:13:26.186553 INFO::Fitting model to feature number 10, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Rikenellaceae.g__Alistipes.s__Alistipes_putredinis.t__SGB2318
+#> 2026-11-13 17:13:26.2425 INFO::Fitting model to feature number 11, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Tannerellaceae.g__Parabacteroides.s__Parabacteroides_distasonis.t__SGB1934
+#> 2026-11-13 17:13:26.893733 INFO::Fitting model to feature number 12, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Lachnospiraceae.g__Roseburia.s__Roseburia_intestinalis.t__SGB4951
+#> 2026-11-13 17:13:26.948938 INFO::Fitting model to feature number 13, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15316
+#> 2026-11-13 17:13:27.007745 INFO::Fitting model to feature number 14, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_fragilis.t__SGB1855
+#> 2026-11-13 17:13:27.062906 INFO::Fitting model to feature number 15, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Lachnospiraceae.g__Roseburia.s__Roseburia_faecis.t__SGB4925
+#> 2026-11-13 17:13:27.117811 INFO::Fitting model to feature number 16, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_caccae.t__SGB1877
+#> 2026-11-13 17:13:27.172221 INFO::Fitting model to feature number 17, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Phocaeicola.s__Phocaeicola_massiliensis.t__SGB1812
+#> 2026-11-13 17:13:27.227304 INFO::Fitting model to feature number 18, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15332
+#> 2026-11-13 17:13:27.282607 INFO::Fitting model to feature number 19, k__Bacteria.p__Bacteroidetes.c__Bacteroidia.o__Bacteroidales.f__Bacteroidaceae.g__Bacteroides.s__Bacteroides_thetaiotaomicron.t__SGB1861
+#> 2026-11-13 17:13:27.338401 INFO::Fitting model to feature number 20, k__Bacteria.p__Firmicutes.c__Clostridia.o__Eubacteriales.f__Oscillospiraceae.g__Faecalibacterium.s__Faecalibacterium_prausnitzii.t__SGB15318
+#> 2026-11-13 17:13:27.402174 INFO::Counting total values for each feature
+#> 2026-11-13 17:13:27.40802 INFO::Writing filtered data to file /tmp/RtmpNZD15i/m2_78435735/features/filtered_data.tsv
+#> 2026-11-13 17:13:27.420305 INFO::Writing filtered, normalized data to file /tmp/RtmpNZD15i/m2_78435735/features/filtered_data_norm.tsv
+#> 2026-11-13 17:13:27.43234 INFO::Writing filtered, normalized, transformed data to file /tmp/RtmpNZD15i/m2_78435735/features/filtered_data_norm_transformed.tsv
+#> 2026-11-13 17:13:27.446754 INFO::Writing residuals to file /tmp/RtmpNZD15i/m2_78435735/fits/residuals.rds
+#> 2026-11-13 17:13:27.455273 INFO::Writing fitted values to file /tmp/RtmpNZD15i/m2_78435735/fits/fitted.rds
+#> 2026-11-13 17:13:27.46276 INFO::Writing extracted random effects to file /tmp/RtmpNZD15i/m2_78435735/fits/ranef.rds
+#> 2026-11-13 17:13:27.46376 INFO::Writing all results to file (ordered by increasing q-values): /tmp/RtmpNZD15i/m2_78435735/all_results.tsv
+#> 2026-11-13 17:13:27.465449 INFO::Writing the significant results (those which are less than or equal to the threshold of 1.000000 ) to file (ordered by increasing q-values): /tmp/RtmpNZD15i/m2_78435735/significant_results.tsv
 
 head(res$res)
 #>                                                                                                                                          feature
@@ -2225,7 +2225,7 @@ sessionInfo()
 #>  [81] pcaPP_2.0-7                 generics_0.1.4             
 #>  [83] S4Vectors_0.50.3            ggplot2_4.0.3              
 #>  [85] scales_1.4.0                minqa_1.2.8                
-#>  [87] DAssemble_0.99.4            glue_1.8.1                 
+#>  [87] DAssemble_0.99.5            glue_1.8.1                 
 #>  [89] tools_4.6.2                 data.table_1.18.6.1        
 #>  [91] robustbase_0.99-7           lme4_2.1-0                 
 #>  [93] locfit_1.5-9.12             fs_2.1.0                   

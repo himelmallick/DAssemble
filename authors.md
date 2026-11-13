@@ -17,13 +17,13 @@ Source:
 [`DESCRIPTION`](https://github.com/himelmallick/DAssemble/blob/master/DESCRIPTION)
 
 Liu Z, Arora N, Gao C, Mallick H (2026). *DAssemble: Ensemble Models for
-Differential Analysis*. R package version 0.99.4,
+Differential Analysis*. R package version 0.99.5,
 <https://himelmallick.github.io/DAssemble/>.
 
     @Manual{,
       title = {DAssemble: Ensemble Models for Differential Analysis},
       author = {Ziyu Liu and Nalin Arora and Chuxuan Gao and Himel Mallick},
       year = {2026},
-      note = {R package version 0.99.4},
+      note = {R package version 0.99.5},
       url = {https://himelmallick.github.io/DAssemble/},
     }
