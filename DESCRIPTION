@@ -1,7 +1,7 @@
 Package: DAssemble
 Type: Package
 Title: Ensemble Models for Differential Analysis
-Version: 0.99.4
+Version: 0.99.5
 Authors@R: 
     c(
         person("Ziyu", "Liu", email = "lclcencen@gmail.com", role = "aut"),

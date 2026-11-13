@@ -432,6 +432,7 @@ test_that("LOCOM wrapper uses LOCOM2 and returns standardized output", {
   expect_named(res, c("feature", "metadata", "pval_core"))
   expect_setequal(res$feature, colnames(toy$features))
   expect_equal(res$metadata, rep("group", ncol(toy$features)))
+  expect_true(any(is.finite(res$pval_core)))
   expect_true(all(res$pval_core >= 0 & res$pval_core <= 1, na.rm = TRUE))
 })
 
